@@ -38,6 +38,7 @@ data/*.csv
 data/*.json
 data/*.xml
 data/*.log
+data/*.db
 
 # Excepciones: Mantener archivo vacío de ejemplo (si lo tienes)
 !data/.gitkeep
