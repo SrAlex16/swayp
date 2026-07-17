@@ -3,6 +3,8 @@
 
 Uso:
     python recommend.py --user test --likes "Elden Ring" "Dark Souls" "Hollow Knight"
+    python recommend.py --user test --likes "Elden Ring" "Dark Souls" --debug
+    python recommend.py --inspect-text "Elden Ring"
 """
 import argparse
 import json
@@ -54,13 +56,7 @@ def find_liked_items(catalog: list[Item], likes: list[str]) -> tuple[list[Item],
     return found, not_found
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Recomendaciones de validación manual (Fase 0)")
-    parser.add_argument("--user", required=True, help="Nombre del usuario de prueba")
-    parser.add_argument("--likes", nargs="+", required=True, help="Títulos que le gustan al usuario")
-    parser.add_argument("--top", type=int, default=10, help="Número de recomendaciones a mostrar")
-    args = parser.parse_args()
-
+def load_catalog_from_db() -> list[Item]:
     if not DB_PATH.exists():
         print(f"No se encontró {DB_PATH}. Ejecuta antes scripts/populate_catalog.py")
         sys.exit(1)
@@ -74,6 +70,49 @@ def main() -> None:
         print("El catálogo está vacío. Ejecuta scripts/populate_catalog.py primero.")
         sys.exit(1)
 
+    return catalog
+
+
+def inspect_text(title_query: str) -> None:
+    """Imprime el text_for_vectorization guardado tal cual, sin pasar por el motor."""
+    catalog = load_catalog_from_db()
+    needle = title_query.strip().lower()
+    match = next((item for item in catalog if needle in item.title.lower()), None)
+
+    if match is None:
+        print(f"No se encontró ningún título que contenga: {title_query}")
+        sys.exit(1)
+
+    print(f"Título: {match.title}")
+    print("text_for_vectorization:")
+    print(match.text_for_vectorization)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Recomendaciones de validación manual (Fase 0)")
+    parser.add_argument("--user", help="Nombre del usuario de prueba")
+    parser.add_argument("--likes", nargs="+", help="Títulos que le gustan al usuario")
+    parser.add_argument("--top", type=int, default=10, help="Número de recomendaciones a mostrar")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Desglosa similarity_score, community_score_normalizado y términos TF-IDF compartidos",
+    )
+    parser.add_argument(
+        "--inspect-text",
+        metavar="TITULO",
+        help="Imprime el text_for_vectorization guardado para ese título y sale (sin usar el motor)",
+    )
+    args = parser.parse_args()
+
+    if args.inspect_text:
+        inspect_text(args.inspect_text)
+        return
+
+    if not args.user or not args.likes:
+        parser.error("--user y --likes son obligatorios (salvo que uses --inspect-text)")
+
+    catalog = load_catalog_from_db()
     liked_items, not_found = find_liked_items(catalog, args.likes)
 
     if not_found:
@@ -84,14 +123,27 @@ def main() -> None:
         sys.exit(1)
 
     engine = TFIDFRecommendationEngine()
-    recommendations = engine.recommend(liked_items, catalog, top_n=args.top)
 
     print(f"Usuario: {args.user}")
     print(f"Le gustó: {', '.join(item.title for item in liked_items)}")
     print()
     print("Recomendaciones:")
-    for i, (item, score) in enumerate(recommendations, start=1):
-        print(f"{i}. {item.title} (score: {score:.2f})")
+
+    if args.debug:
+        breakdown = engine.recommend_with_breakdown(liked_items, catalog, top_n=args.top)
+        for i, entry in enumerate(breakdown, start=1):
+            print(f"{i}. {entry.item.title} (score: {entry.final_score:.2f})")
+            print(f"   similarity_score: {entry.similarity_score:.3f}")
+            print(f"   community_score_normalizado: {entry.community_score:.3f}")
+            if entry.shared_terms:
+                terms = ", ".join(f"{term} ({weight:.3f})" for term, weight in entry.shared_terms)
+                print(f"   términos TF-IDF compartidos: {terms}")
+            else:
+                print("   términos TF-IDF compartidos: (ninguno)")
+    else:
+        recommendations = engine.recommend(liked_items, catalog, top_n=args.top)
+        for i, (item, score) in enumerate(recommendations, start=1):
+            print(f"{i}. {item.title} (score: {score:.2f})")
 
 
 if __name__ == "__main__":

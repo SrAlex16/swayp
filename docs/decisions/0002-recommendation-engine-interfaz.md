@@ -14,3 +14,5 @@ Se define una interfaz `RecommendationEngine` con un método de scoring sobre `I
 
 ## Consecuencias
 Cambiar de algoritmo en el futuro es sustituir una implementación, no rediseñar el sistema. Ver ROADMAP.md.
+
+Limitación conocida observada en la práctica durante la Fase 0: el TF-IDF confunde coincidencias léxicas sin relación semántica. Con un perfil souls-like (Dark Souls, Elden Ring, Sekiro), el motor recomendó *Cuphead* entre los primeros resultados por compartir el término "souls" — en el perfil se refiere a la saga Dark Souls, en Cuphead a una mecánica de recolección de almas sin relación temática real. No es un bug a arreglar (la mitigación de ruido léxico de esta fase, ver `src/model/tfidf_engine.py`, ya reduce estos casos pero no los elimina): es la limitación de fondo de un enfoque léxico sin comprensión semántica, y el motivo de contemplar `EmbeddingRecommendationEngine` como alternativa futura (ver ROADMAP.md).

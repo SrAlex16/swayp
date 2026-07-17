@@ -115,10 +115,18 @@ class RawgAdapter(BaseAdapter):
             enrichment_version=self.ENRICHMENT_VERSION,
         )
 
+    # Nº de veces que se repite el bloque de géneros/tags antes de la sinopsis: la
+    # sinopsis libre (hasta 500 caracteres) tiene muchas más palabras que la lista de
+    # géneros/tags, así que en el recuento de términos del TF-IDF la prosa domina y la
+    # señal estructurada de género queda diluida. Repetir el bloque multiplica su peso
+    # en la matriz de términos para que compita con la sinopsis en vez de perderse en ella.
+    GENRE_TAGS_REPEAT = 3
+
     @staticmethod
     def _build_text_for_vectorization(
         title: str, genres: list[str], tags: list[str], description: str
     ) -> str:
         truncated_description = description[:DESCRIPTION_MAX_CHARS]
-        parts = [title, " ".join(genres), " ".join(tags), truncated_description]
+        genre_tags_block = " ".join(genres + tags)
+        parts = [title] + [genre_tags_block] * RawgAdapter.GENRE_TAGS_REPEAT + [truncated_description]
         return " ".join(part for part in parts if part)
