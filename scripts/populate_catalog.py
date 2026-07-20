@@ -1,5 +1,7 @@
 # scripts/populate_catalog.py
-"""Puebla data/swayp.db con el catálogo de videojuegos vía RawgAdapter (Fase 0, ver docs/TODO.md)."""
+"""Puebla data/swayp.db con el catálogo de un dominio (Fase 0/1, ver docs/TODO.md).
+Por defecto sigue poblando videojuegos vía RawgAdapter, igual que en la Fase 0; usa
+--domain movies para poblar películas vía TmdbAdapter."""
 import argparse
 import json
 import logging
@@ -12,8 +14,18 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+from src.adapters.base_adapter import BaseAdapter  # noqa: E402
 from src.adapters.rawg_adapter import RawgAdapter  # noqa: E402
+from src.adapters.tmdb_adapter import TmdbAdapter  # noqa: E402
 from src.model.item import Item  # noqa: E402
+
+# Un dominio nuevo = una entrada más aquí, nada más (ver
+# docs/decisions/0001-item-generico-y-adapters.md).
+ADAPTERS_BY_DOMAIN: dict[str, type[BaseAdapter]] = {
+    "games": RawgAdapter,
+    "movies": TmdbAdapter,
+}
+DEFAULT_DOMAIN = "games"
 
 DB_PATH = ROOT_DIR / "data" / "swayp.db"
 
@@ -86,14 +98,21 @@ def save_item(conn: sqlite3.Connection, item: Item) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Puebla el catálogo de videojuegos desde RAWG")
-    parser.add_argument("--count", type=int, default=200, help="Número de juegos a descargar")
+    parser = argparse.ArgumentParser(description="Puebla el catálogo de un dominio")
+    parser.add_argument(
+        "--domain",
+        choices=sorted(ADAPTERS_BY_DOMAIN),
+        default=DEFAULT_DOMAIN,
+        help=f"Dominio a poblar (default: {DEFAULT_DOMAIN})",
+    )
+    parser.add_argument("--count", type=int, default=200, help="Número de ítems a descargar")
     args = parser.parse_args()
 
     load_dotenv()
 
-    adapter = RawgAdapter()
-    logger.info("Descargando %d juegos populares desde RAWG...", args.count)
+    adapter_cls = ADAPTERS_BY_DOMAIN[args.domain]
+    adapter = adapter_cls()
+    logger.info("Descargando %d ítems populares de '%s' (%s)...", args.count, args.domain, adapter_cls.__name__)
     items = adapter.fetch_popular(args.count)
 
     conn = get_connection()
@@ -102,7 +121,7 @@ def main() -> None:
             save_item(conn, item)
     conn.close()
 
-    logger.info("Guardados %d/%d juegos en %s", len(items), args.count, DB_PATH)
+    logger.info("Guardados %d/%d ítems de '%s' en %s", len(items), args.count, args.domain, DB_PATH)
 
 
 if __name__ == "__main__":

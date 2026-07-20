@@ -31,3 +31,9 @@ Añadir un adapter nuevo implica revisar sus tags reales (no asumir que se compo
 como RAWG) y construir su propia denylist si hace falta, siguiendo el mismo patrón:
 filtrar solo del texto de vectorización, documentar el motivo con casos reales
 detectados, no heurísticas genéricas sin verificar.
+
+El adapter de TMDB (Fase 2) no necesitó `TAG_DENYLIST` — su heterogeneidad es distinta
+(campos de producción separados, no tags mezclados). Se detectó un caso menor de ruido
+de metadata técnica (keywords "duringcreditsstinger"/"aftercreditsstinger", marcador de
+escena post-créditos) con peso bajo y sin impacto observable en el ranking — no se
+actúa por ahora, queda anotado por si crece con más datos.

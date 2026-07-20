@@ -4,6 +4,7 @@
 Uso:
     python recommend.py --user test --likes "Elden Ring" "Dark Souls" "Hollow Knight"
     python recommend.py --user test --likes "Elden Ring" "Dark Souls" --debug
+    python recommend.py --domain movies --user test --likes "Moana" "Scary Movie"
     python recommend.py --inspect-text "Elden Ring"
 """
 import argparse
@@ -18,7 +19,7 @@ from src.model.tfidf_engine import TFIDFRecommendationEngine  # noqa: E402
 from src.repositories import item_repository  # noqa: E402
 
 DB_PATH = ROOT_DIR / "data" / "swayp.db"
-DOMAIN = "games"  # único dominio de la Fase 0/1, ver docs/TODO.md
+DEFAULT_DOMAIN = "games"
 
 
 def find_liked_items(catalog: list[Item], likes: list[str]) -> tuple[list[Item], list[str]]:
@@ -35,23 +36,23 @@ def find_liked_items(catalog: list[Item], likes: list[str]) -> tuple[list[Item],
     return found, not_found
 
 
-def load_catalog_from_db() -> list[Item]:
+def load_catalog_from_db(domain: str) -> list[Item]:
     if not DB_PATH.exists():
         print(f"No se encontró {DB_PATH}. Ejecuta antes scripts/populate_catalog.py")
         sys.exit(1)
 
-    catalog = item_repository.get_all(DOMAIN)
+    catalog = item_repository.get_all(domain)
 
     if not catalog:
-        print("El catálogo está vacío. Ejecuta scripts/populate_catalog.py primero.")
+        print(f"El catálogo de '{domain}' está vacío. Ejecuta antes scripts/populate_catalog.py --domain {domain}")
         sys.exit(1)
 
     return catalog
 
 
-def inspect_text(title_query: str) -> None:
+def inspect_text(domain: str, title_query: str) -> None:
     """Imprime el text_for_vectorization guardado tal cual, sin pasar por el motor."""
-    catalog = load_catalog_from_db()
+    catalog = load_catalog_from_db(domain)
     needle = title_query.strip().lower()
     match = next((item for item in catalog if needle in item.title.lower()), None)
 
@@ -66,6 +67,11 @@ def inspect_text(title_query: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Recomendaciones de validación manual (Fase 0)")
+    parser.add_argument(
+        "--domain",
+        default=DEFAULT_DOMAIN,
+        help=f"Dominio a usar, ej. 'games' o 'movies' (default: {DEFAULT_DOMAIN})",
+    )
     parser.add_argument("--user", help="Nombre del usuario de prueba")
     parser.add_argument("--likes", nargs="+", help="Títulos que le gustan al usuario")
     parser.add_argument("--top", type=int, default=10, help="Número de recomendaciones a mostrar")
@@ -82,13 +88,13 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.inspect_text:
-        inspect_text(args.inspect_text)
+        inspect_text(args.domain, args.inspect_text)
         return
 
     if not args.user or not args.likes:
         parser.error("--user y --likes son obligatorios (salvo que uses --inspect-text)")
 
-    catalog = load_catalog_from_db()
+    catalog = load_catalog_from_db(args.domain)
     liked_items, not_found = find_liked_items(catalog, args.likes)
 
     if not_found:
