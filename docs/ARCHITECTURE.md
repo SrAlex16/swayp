@@ -137,7 +137,8 @@ CREATE TABLE items (
   community_score REAL,
   image_url TEXT,                  -- imagen principal, para listados/miniaturas
   external_url TEXT,
-  adapter_version TEXT NOT NULL,   -- qué versión del adapter generó este registro
+  adapter_version TEXT NOT NULL,   -- versión de la lógica que llama a la API y mapea su respuesta a Item
+  enrichment_version TEXT NOT NULL, -- versión de la lógica que construye text_for_vectorization; puede cambiar sin que cambie adapter_version
   fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(domain_code, external_id)
 );
@@ -580,12 +581,24 @@ Para que quede claro qué es limitación deliberada y qué es simplemente "todav
 - **Sin multi-idioma en el diseño base**: la app anterior tenía ES/EN. No lo incluyo como requisito del rediseño; si sobra tiempo al final es una capa que se puede añadir sin tocar arquitectura (es presentación pura).
 - **Sin sistema de feature flags**: `domains.enabled` ya cubre el caso más simple (activar/desactivar un dominio entero). Un sistema de flags más fino (activar un scoring nuevo solo para un dominio, experimentar con variantes) es una buena idea para cuando el MVP funcione, no antes — añadirlo ahora sería exactamente el tipo de frente adicional que conviene evitar mientras el pipeline principal (fase 0-4 del roadmap) no esté validado.
 - **Sin búsqueda manual**: el descubrimiento es 100% por swipe, no hay caja de búsqueda en el diseño. Si se añadiera en el futuro, el caché de `items` (por `domain_code` + `external_id`, compartido entre usuarios) ya soporta ese caso sin cambios — pero no es una funcionalidad que exista hoy en la app, así que no hay nada que resolver todavía.
+- **Sin almacenamiento incremental de vectores ni publicación de modelo estilo blue-green**: patrones reales de producción (recalcular solo ítems nuevos, servir la versión anterior del modelo mientras se entrena la siguiente), pero pensados para catálogos de decenas de miles de ítems donde reentrenar es lento. A la escala de este proyecto (cientos/pocos miles de ítems), recalcular TF-IDF+SVD sobre todo el catálogo tarda segundos — no hay ventana de tiempo que proteger. `text_for_vectorization` ya evita reprocesar el texto crudo de la API en cada refresco, que es la parte barata y suficiente de la idea. Queda documentado como patrón conocido y descartado por escala, no como olvido.
 
 ---
 
 ## 13. Roadmap de implementación por fases
 
-**Antes de la fase 1**: nada de Flask ni de Flutter todavía. Un script de terminal que ejecute `adapter → item → sqlite → text_for_vectorization → tfidf → recomendación → json` para un puñado de ítems reales de un solo dominio. El objetivo no es arquitectura, es responder a la pregunta que de verdad importa: *¿el algoritmo produce recomendaciones que tienen sentido?* Es mucho más barato descubrir que hace falta ajustar el enfoque en un script de 200 líneas que después de tener API y app Flutter construidas encima. Si el resultado es pobre, es el momento de decidir si hace falta enriquecer más los datos (sección 3.1) antes de seguir.
+**Antes de la fase 1**: nada de Flask ni de Flutter todavía. Un script de terminal (ej. `recommend.py --user test`) que ejecute `adapter → item → sqlite → text_for_vectorization → tfidf → recomendación → json` para un puñado de ítems reales de un solo dominio, con una salida legible tipo:
+
+Usuario: test
+Le gustó: Elden Ring, Dark Souls, Hollow Knight
+
+Recomendaciones:
+
+Lies of P
+Bloodborne
+Blasphemous
+
+El criterio de aceptación es deliberadamente humano, no automatizado: si al leer esa lista piensas "sí, esto tiene sentido", el motor está validado y se puede construir encima con confianza. El objetivo no es arquitectura, es responder a la pregunta que de verdad importa: *¿el algoritmo produce recomendaciones que tienen sentido?* Es mucho más barato descubrir que hace falta ajustar el enfoque en un script de 200 líneas que después de tener API y app Flutter construidas encima. Si el resultado es pobre, es el momento de decidir si hace falta enriquecer más los datos (sección 3.1) antes de seguir.
 
 1. **Fundamentos backend**: esquema SQLite + repositories + `Item` genérico + `base_adapter` (interfaz) + interfaz `RecommendationEngine` (sección 3.1) + logging estructurado + manejo de errores estandarizado. Sin ningún dominio real todavía, solo con datos de fixture.
 2. **Primer adapter real** (el que elijas primero) + endpoint de seed + endpoint de rating + job de recomendaciones. Validas el contrato end-to-end con un solo dominio — esto ya debería funcionar de forma muy parecida al script de la fase 0, solo que ahora detrás de una API real.
