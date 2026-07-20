@@ -116,12 +116,17 @@ para la Fase 0.
 
 ## Veredicto final
 
-Fase 0 validada. 2 de 3 perfiles de prueba (souls-like, indie) dan recomendaciones
-limpias y explicables tras el tuning. El tercero (mundo abierto) es razonable con causa
-raíz identificada y documentada como limitación conocida del catálogo de prueba, no del
-algoritmo. Se decide no seguir afinando parámetros del motor sobre este catálogo
-concreto, para evitar sobreajustar a sus peculiaridades — criterio de parada aplicado
-conscientemente.
+Fase 0 validada, con matices. El perfil indie da recomendaciones limpias y
+explicables. El perfil de mundo abierto es razonable, con la causa raíz del sesgo de
+catálogo ya identificada y documentada como limitación conocida, no del motor. El
+perfil souls-like es temáticamente coherente (sin ruido burdo tipo lo visto en la
+Ronda 1) pero no está óptimamente ordenado: el match más evidente del catálogo
+(Bloodborne, mismo estudio y subgénero que Dark Souls/Elden Ring) queda en la posición
+#10 en vez de encabezar la lista, y el caso de coincidencia léxica sin relación
+semántica (Cuphead, ver ADR-0002) reaparece en el top 10. Se aplica el mismo criterio
+de parada que en rondas anteriores: no seguir ajustando parámetros del motor sobre
+este catálogo concreto para evitar sobreajustar a sus peculiaridades, aceptando esta
+limitación de ranking como conocida y documentada.
 
 ## Lecciones para las siguientes fases (y siguientes adapters)
 
