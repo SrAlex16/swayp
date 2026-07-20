@@ -15,3 +15,7 @@ Se define un esquema `Item` genérico (title, description, text_for_vectorizatio
 
 ## Consecuencias
 Añadir un dominio nuevo implica escribir un adapter, no tocar el motor ni la mayoría de la UI. A cambio, cada adapter debe normalizar datos heterogéneos a un esquema común (ver diseño de `text_for_vectorization` en ARCHITECTURE.md).
+
+## Validación (Fase 2)
+
+El segundo adapter (`TmdbAdapter`, dominio películas) se implementó sin modificar `src/model/` (Item, engine, tfidf_engine), `src/api/` ni `src/services/` — confirmado con `git status` antes del commit. Es la prueba empírica de que la decisión de esta ADR se sostiene con un segundo caso real, no solo con el diseño sobre el papel.
