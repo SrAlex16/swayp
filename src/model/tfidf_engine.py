@@ -56,6 +56,10 @@ class ScoredItem:
 class TFIDFRecommendationEngine(RecommendationEngine):
     """TF-IDF + SVD + similitud coseno, primera implementación de RecommendationEngine."""
 
+    # Qué versión de esta implementación generó una recomendación concreta, para
+    # trazabilidad (se guarda en jobs.engine_version, ver docs/ARCHITECTURE.md 3.3).
+    ENGINE_VERSION = "tfidf-0.1"
+
     def recommend(
         self, liked_items: list[Item], catalog: list[Item], top_n: int
     ) -> list[tuple[Item, float]]:
