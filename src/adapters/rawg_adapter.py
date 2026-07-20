@@ -76,6 +76,11 @@ class RawgAdapter(BaseAdapter):
         )
 
     def fetch_popular(self, count: int) -> list[Item]:
+        logger.info(
+            "descargando catálogo popular de RAWG",
+            extra={"layer": "adapter", "event": "fetch_popular_started", "count": count},
+        )
+
         items: list[Item] = []
         page = 1
         page_size = min(self.PAGE_SIZE, max(1, count))
@@ -103,6 +108,15 @@ class RawgAdapter(BaseAdapter):
                 break
             page += 1
 
+        logger.info(
+            "catálogo popular de RAWG descargado",
+            extra={
+                "layer": "adapter",
+                "event": "fetch_popular_done",
+                "requested": count,
+                "obtained": len(items),
+            },
+        )
         return items
 
     def fetch_by_id(self, external_id: str) -> Item | None:
@@ -112,6 +126,9 @@ class RawgAdapter(BaseAdapter):
         return self._to_item(data)
 
     def _get(self, path: str, params: dict | None = None) -> dict | None:
+        logger.debug(
+            "petición a RAWG", extra={"layer": "adapter", "event": "external_request", "path": path}
+        )
         time.sleep(self.request_delay_seconds)
         url = f"{self.BASE_URL}{path}"
         query = {"key": self.api_key, **(params or {})}
@@ -120,7 +137,12 @@ class RawgAdapter(BaseAdapter):
             response.raise_for_status()
             return response.json()
         except requests.RequestException as exc:
-            logger.warning("RAWG: fallo al pedir %s: %s", path, exc)
+            logger.warning(
+                "RAWG: fallo al pedir %s: %s",
+                path,
+                exc,
+                extra={"layer": "adapter", "event": "external_request_failed", "path": path},
+            )
             return None
 
     def _to_item(self, data: dict) -> Item:

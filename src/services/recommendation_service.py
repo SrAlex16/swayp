@@ -1,7 +1,11 @@
 # src/services/recommendation_service.py
+import logging
+
 from src.core.errors import ValidationError
 from src.model.tfidf_engine import TFIDFRecommendationEngine
 from src.repositories import item_repository, rating_repository
+
+logger = logging.getLogger(__name__)
 
 # Señal simple de esta fase: solo "interested" cuenta como gusto para el motor. No
 # distingue todavía "ya lo conozco" (known_liked/known_disliked) — ver
@@ -10,6 +14,16 @@ LIKED_STATUS = "interested"
 
 
 def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) -> list[dict]:
+    logger.info(
+        "generando recomendaciones",
+        extra={
+            "layer": "service",
+            "event": "generate_recommendations_started",
+            "user_id": user_id,
+            "domain_code": domain_code,
+        },
+    )
+
     ratings = rating_repository.get_by_user(user_id, domain_code)
     liked_ratings = [rating for rating in ratings if rating.status == LIKED_STATUS]
 
@@ -21,6 +35,19 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
 
     engine = TFIDFRecommendationEngine()
     recommendations = engine.recommend(liked_items, catalog, top_n)
+
+    logger.info(
+        "recomendaciones generadas",
+        extra={
+            "layer": "service",
+            "event": "generate_recommendations_done",
+            "user_id": user_id,
+            "domain_code": domain_code,
+            "liked_count": len(liked_items),
+            "catalog_size": len(catalog),
+            "result_count": len(recommendations),
+        },
+    )
 
     return [
         {

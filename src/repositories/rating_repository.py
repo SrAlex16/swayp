@@ -1,8 +1,11 @@
 # src/repositories/rating_repository.py
+import logging
 import sqlite3
 
 from src.core.db import get_connection
 from src.model.rating import Rating
+
+logger = logging.getLogger(__name__)
 
 
 def _row_to_rating(row: sqlite3.Row) -> Rating:
@@ -32,7 +35,20 @@ def create(user_id: int, item_id: int, domain_code: str, status: str, source: st
         row = conn.execute(
             "SELECT * FROM ratings WHERE id = ?", (cursor.lastrowid,)
         ).fetchone()
-        return _row_to_rating(row)
+        rating = _row_to_rating(row)
+        logger.debug(
+            "rating guardado",
+            extra={
+                "layer": "repository",
+                "event": "rating_created",
+                "rating_id": rating.id,
+                "user_id": user_id,
+                "item_id": item_id,
+                "domain_code": domain_code,
+                "status": status,
+            },
+        )
+        return rating
     finally:
         conn.close()
 
@@ -44,6 +60,17 @@ def get_by_user(user_id: int, domain_code: str) -> list[Rating]:
             "SELECT * FROM ratings WHERE user_id = ? AND domain_code = ?",
             (user_id, domain_code),
         ).fetchall()
-        return [_row_to_rating(row) for row in rows]
+        ratings = [_row_to_rating(row) for row in rows]
+        logger.debug(
+            "ratings cargados",
+            extra={
+                "layer": "repository",
+                "event": "ratings_loaded",
+                "user_id": user_id,
+                "domain_code": domain_code,
+                "count": len(ratings),
+            },
+        )
+        return ratings
     finally:
         conn.close()

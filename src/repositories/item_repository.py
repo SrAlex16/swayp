@@ -2,10 +2,13 @@
 """Lectura de la tabla `items` (poblada por scripts/populate_catalog.py). Extraído de
 recommend.py para que la lógica de mapeo fila->Item viva en un solo sitio."""
 import json
+import logging
 import sqlite3
 
 from src.core.db import get_connection
 from src.model.item import Item
+
+logger = logging.getLogger(__name__)
 
 
 def _row_to_item(row: sqlite3.Row) -> Item:
@@ -31,7 +34,17 @@ def get_all(domain_code: str) -> list[Item]:
         rows = conn.execute(
             "SELECT * FROM items WHERE domain = ?", (domain_code,)
         ).fetchall()
-        return [_row_to_item(row) for row in rows]
+        items = [_row_to_item(row) for row in rows]
+        logger.debug(
+            "catálogo cargado",
+            extra={
+                "layer": "repository",
+                "event": "items_loaded",
+                "domain_code": domain_code,
+                "count": len(items),
+            },
+        )
+        return items
     finally:
         conn.close()
 
@@ -40,7 +53,17 @@ def get_by_id(item_id: int) -> Item | None:
     conn = get_connection()
     try:
         row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
-        return _row_to_item(row) if row is not None else None
+        item = _row_to_item(row) if row is not None else None
+        logger.debug(
+            "item buscado por id",
+            extra={
+                "layer": "repository",
+                "event": "item_lookup",
+                "item_id": item_id,
+                "found": item is not None,
+            },
+        )
+        return item
     finally:
         conn.close()
 
@@ -55,6 +78,16 @@ def get_by_ids(item_ids: list[int]) -> list[Item]:
         rows = conn.execute(
             f"SELECT * FROM items WHERE id IN ({placeholders})", item_ids
         ).fetchall()
-        return [_row_to_item(row) for row in rows]
+        items = [_row_to_item(row) for row in rows]
+        logger.debug(
+            "items buscados por id",
+            extra={
+                "layer": "repository",
+                "event": "items_lookup",
+                "requested": len(item_ids),
+                "found": len(items),
+            },
+        )
+        return items
     finally:
         conn.close()

@@ -1,10 +1,14 @@
 # src/api/routes/ratings_routes.py
+import logging
+
 from flask import Blueprint, jsonify, request
 
 from src.core.errors import NotFoundError, ValidationError
 from src.model.item import Item
 from src.model.rating import Rating
 from src.repositories import item_repository, rating_repository, user_repository
+
+logger = logging.getLogger(__name__)
 
 ratings_bp = Blueprint("ratings", __name__)
 
@@ -70,6 +74,19 @@ def create_rating(domain_code: str):
         domain_code=domain_code,
         status=status,
         source=RATING_SOURCE,
+    )
+
+    logger.info(
+        "rating creado",
+        extra={
+            "layer": "api",
+            "event": "rating_created",
+            "rating_id": rating.id,
+            "user_id": user.id,
+            "item_id": item.id,
+            "domain_code": domain_code,
+            "status": status,
+        },
     )
 
     return jsonify(_rating_to_dict(rating)), 201

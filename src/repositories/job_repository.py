@@ -1,8 +1,11 @@
 # src/repositories/job_repository.py
+import logging
 import sqlite3
 
 from src.core.db import get_connection
 from src.model.job import Job
+
+logger = logging.getLogger(__name__)
 
 
 def _row_to_job(row: sqlite3.Row) -> Job:
@@ -39,7 +42,19 @@ def create(
         )
         conn.commit()
         row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-        return _row_to_job(row)
+        job = _row_to_job(row)
+        logger.debug(
+            "job creado",
+            extra={
+                "layer": "repository",
+                "event": "job_created",
+                "job_id": job_id,
+                "type": type,
+                "user_id": user_id,
+                "domain_code": domain_code,
+            },
+        )
+        return job
     finally:
         conn.close()
 
@@ -66,6 +81,15 @@ def update_status(
             (status, result, error_message, engine_version, job_id),
         )
         conn.commit()
+        logger.debug(
+            "job actualizado",
+            extra={
+                "layer": "repository",
+                "event": "job_status_updated",
+                "job_id": job_id,
+                "status": status,
+            },
+        )
     finally:
         conn.close()
 

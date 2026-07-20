@@ -52,6 +52,11 @@ class TmdbAdapter(BaseAdapter):
         )
 
     def fetch_popular(self, count: int) -> list[Item]:
+        logger.info(
+            "descargando catálogo popular de TMDB",
+            extra={"layer": "adapter", "event": "fetch_popular_started", "count": count},
+        )
+
         items: list[Item] = []
         page = 1
 
@@ -68,6 +73,10 @@ class TmdbAdapter(BaseAdapter):
                 if len(items) >= count:
                     break
                 if movie.get("adult"):
+                    logger.debug(
+                        "película adult=true excluida del catálogo",
+                        extra={"layer": "adapter", "event": "adult_item_skipped", "external_id": movie.get("id")},
+                    )
                     continue
                 item = self.fetch_by_id(str(movie["id"]))
                 if item is not None:
@@ -78,6 +87,15 @@ class TmdbAdapter(BaseAdapter):
                 break
             page += 1
 
+        logger.info(
+            "catálogo popular de TMDB descargado",
+            extra={
+                "layer": "adapter",
+                "event": "fetch_popular_done",
+                "requested": count,
+                "obtained": len(items),
+            },
+        )
         return items
 
     def fetch_by_id(self, external_id: str) -> Item | None:
@@ -90,6 +108,9 @@ class TmdbAdapter(BaseAdapter):
         return self._to_item(data)
 
     def _get(self, path: str, params: dict | None = None) -> dict | None:
+        logger.debug(
+            "petición a TMDB", extra={"layer": "adapter", "event": "external_request", "path": path}
+        )
         time.sleep(self.request_delay_seconds)
         url = f"{self.BASE_URL}{path}"
         headers = {
@@ -101,7 +122,12 @@ class TmdbAdapter(BaseAdapter):
             response.raise_for_status()
             return response.json()
         except requests.RequestException as exc:
-            logger.warning("TMDB: fallo al pedir %s: %s", path, exc)
+            logger.warning(
+                "TMDB: fallo al pedir %s: %s",
+                path,
+                exc,
+                extra={"layer": "adapter", "event": "external_request_failed", "path": path},
+            )
             return None
 
     def _to_item(self, data: dict) -> Item:

@@ -1,4 +1,5 @@
 # src/api/routes/seed_routes.py
+import logging
 import random
 
 from flask import Blueprint, jsonify, request
@@ -6,6 +7,8 @@ from flask import Blueprint, jsonify, request
 from src.core.errors import ValidationError
 from src.model.item import Item
 from src.repositories import item_repository, rating_repository, user_repository
+
+logger = logging.getLogger(__name__)
 
 seed_bp = Blueprint("seed", __name__)
 
@@ -53,5 +56,18 @@ def get_seed(domain_code: str):
     candidates = [item for item in catalog if item.id not in already_rated_ids]
 
     sample = random.sample(candidates, k=min(count, len(candidates)))
+
+    logger.info(
+        "seed de onboarding servido",
+        extra={
+            "layer": "api",
+            "event": "seed_served",
+            "user_id": user.id,
+            "domain_code": domain_code,
+            "requested": count,
+            "returned": len(sample),
+            "catalog_size": len(catalog),
+        },
+    )
 
     return jsonify([_item_to_dict(item) for item in sample]), 200
