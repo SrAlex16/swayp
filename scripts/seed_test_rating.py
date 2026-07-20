@@ -1,8 +1,10 @@
 # scripts/seed_test_rating.py
-"""Script CLI TEMPORAL, no documentado como parte permanente de la API: sirve para
-sembrar ratings 'interested' de prueba directamente (sin pasar por HTTP) y así poder
-probar el flujo de jobs de recomendaciones antes de que exista el endpoint real de
-ratings (Bloque C). Se puede borrar en cuanto ese endpoint exista.
+"""Script CLI TEMPORAL, no documentado como parte permanente de la API.
+
+Desde este commit ya existe el endpoint real POST /api/v1/domains/<domain_code>/ratings
+(ver src/api/routes/ratings_routes.py) — este script deja de ser el único camino para
+sembrar ratings y pasa a ser solo una utilidad de desarrollo para pruebas rápidas sin
+tener que arrancar el servidor Flask, no un sustituto permanente del endpoint.
 
 Uso:
     python scripts/seed_test_rating.py --device-id test1 --domain games \

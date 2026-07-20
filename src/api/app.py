@@ -2,6 +2,8 @@
 from flask import Flask, g, jsonify, request
 
 from src.api.routes.jobs_routes import jobs_bp
+from src.api.routes.ratings_routes import ratings_bp
+from src.api.routes.seed_routes import seed_bp
 from src.core.db import init_db
 from src.core.errors import AppError
 from src.core.logging_config import configure_logging, get_request_id, set_request_id
@@ -28,5 +30,7 @@ def create_app() -> Flask:
         return jsonify(error.to_dict(get_request_id())), error.http_status
 
     app.register_blueprint(jobs_bp, url_prefix="/api/v1")
+    app.register_blueprint(ratings_bp, url_prefix="/api/v1")
+    app.register_blueprint(seed_bp, url_prefix="/api/v1")
 
     return app
