@@ -82,6 +82,26 @@ rpg, exploration, fantasy).
 
 ## Ronda 5 — sesgo de diversidad del catálogo de prueba
 
+Se amplió `TAG_DENYLIST` con `Co-op`, `Cooperative`, `Multiplayer`, `Singleplayer`
+(mismo criterio que la Ronda 4: características técnicas/de modo de juego, no género).
+En su momento se afirmó que Bloodborne se mantenía en el puesto #1 del perfil
+souls-like tras este cambio — **esa afirmación no se verificó con el desglose
+`--debug` correspondiente** y resultó ser incorrecta.
+
+Estado final verificado (`recommend.py --debug`, perfil souls-like: Elden Ring, Dark
+Souls III, Hollow Knight):
+
+1. Dead Cells (0.70)
+2. Terraria (0.69)
+3. Hades (0.68)
+4. Bastion (0.65)
+5. Fallout 4 (0.65)
+6. Ori and the Blind Forest (0.63)
+7. Skyrim (0.63)
+8. Cuphead (0.63, con "souls" como término compartido — caso ya documentado en ADR-0002)
+9. Undertale (0.61)
+10. Bloodborne (0.60)
+
 El perfil de mundo abierto (GTA V/RDR2) seguía dando resultados cuestionables (Watch
 Dogs, Monster Hunter: World) incluso tras limpiar el ruido de plataforma. Medido
 directamente: en el catálogo de 200 juegos (los "más añadidos" de RAWG, sesgados hacia
@@ -117,3 +137,7 @@ conscientemente.
 4. Herramientas de diagnóstico (`--debug`, `--inspect-text`) fueron imprescindibles:
    sin desglose de scores ni inspección directa del texto, varios de estos hallazgos
    habrían quedado como "el algoritmo no funciona bien" sin causa identificada.
+5. Verificar siempre con datos reales antes de aceptar una afirmación de
+   "comportamiento estable" — en la Ronda 5 se aceptó una afirmación sin el desglose
+   `--debug` correspondiente, lo que generó ambigüedad más tarde sobre cuál era el
+   estado final verdadero de la Fase 0.
