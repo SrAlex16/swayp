@@ -7,4 +7,6 @@
 - [x] Implementar `TFIDFRecommendationEngine` (interfaz `RecommendationEngine` + primera implementación)
 - [x] Script `recommend.py` de terminal: usuario de prueba con gustos declarados → top N recomendaciones legibles
 - [x] Validar manualmente con 2-3 perfiles de prueba distintos si las recomendaciones tienen sentido
-- [ ] Decidir si hace falta enriquecer más los datos antes de pasar a la Fase 1
+- [x] Decidir si hace falta enriquecer más los datos antes de pasar a la Fase 1 (decidido: no enriquecer más sobre este catálogo de prueba — ver docs/fase0-validacion.md, veredicto final)
+
+**Fase 0 completada.** Próxima fase: Fase 1 (API mínima sobre el dominio de videojuegos) — ver docs/ARCHITECTURE.md, sección Roadmap.

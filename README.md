@@ -45,6 +45,16 @@ python scripts/populate_catalog.py --count 200
 python recommend.py --user test --likes "Elden Ring" "Dark Souls" "Hollow Knight"
 ```
 
+`recommend.py` también admite `--debug` (desglosa `similarity_score`,
+`community_score_normalizado` y los términos TF-IDF compartidos por cada
+recomendación) e `--inspect-text` (imprime el `text_for_vectorization` guardado para
+un título, sin pasar por el motor):
+
+```bash
+python recommend.py --user test --likes "Elden Ring" "Dark Souls" --debug
+python recommend.py --inspect-text "Elden Ring"
+```
+
 > Las instrucciones de instalación y uso de la API REST y de la app Flutter están
 > pendientes de reescribir conforme avancen las fases 1-3 del roadmap.
 
