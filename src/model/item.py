@@ -10,6 +10,7 @@ class Item:
     title: str
     description: str
     text_for_vectorization: str
+    id: int | None = None
     domain: str = "games"
     tags: list[str] = field(default_factory=list)
     community_score: float = 0.0

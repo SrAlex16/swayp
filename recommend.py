@@ -7,8 +7,6 @@ Uso:
     python recommend.py --inspect-text "Elden Ring"
 """
 import argparse
-import json
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -17,29 +15,10 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.model.item import Item  # noqa: E402
 from src.model.tfidf_engine import TFIDFRecommendationEngine  # noqa: E402
+from src.repositories import item_repository  # noqa: E402
 
 DB_PATH = ROOT_DIR / "data" / "swayp.db"
-
-
-def _row_to_item(row: sqlite3.Row) -> Item:
-    return Item(
-        external_id=row["external_id"],
-        domain=row["domain"],
-        title=row["title"],
-        description=row["description"] or "",
-        text_for_vectorization=row["text_for_vectorization"] or "",
-        tags=json.loads(row["tags"]) if row["tags"] else [],
-        community_score=row["community_score"] or 0.0,
-        image_url=row["image_url"],
-        external_url=row["external_url"],
-        adapter_version=row["adapter_version"],
-        enrichment_version=row["enrichment_version"],
-    )
-
-
-def load_catalog(conn: sqlite3.Connection) -> list[Item]:
-    rows = conn.execute("SELECT * FROM items").fetchall()
-    return [_row_to_item(row) for row in rows]
+DOMAIN = "games"  # único dominio de la Fase 0/1, ver docs/TODO.md
 
 
 def find_liked_items(catalog: list[Item], likes: list[str]) -> tuple[list[Item], list[str]]:
@@ -61,10 +40,7 @@ def load_catalog_from_db() -> list[Item]:
         print(f"No se encontró {DB_PATH}. Ejecuta antes scripts/populate_catalog.py")
         sys.exit(1)
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    catalog = load_catalog(conn)
-    conn.close()
+    catalog = item_repository.get_all(DOMAIN)
 
     if not catalog:
         print("El catálogo está vacío. Ejecuta scripts/populate_catalog.py primero.")

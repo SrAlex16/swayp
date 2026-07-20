@@ -1,11 +1,11 @@
 # src/adapters/rawg_adapter.py
 import logging
-import os
 import time
 
 import requests
 
 from src.adapters.base_adapter import BaseAdapter
+from src.core.config import config
 from src.model.item import Item
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class RawgAdapter(BaseAdapter):
     DEFAULT_REQUEST_DELAY_SECONDS = 0.25
 
     def __init__(self, api_key: str | None = None, request_delay_seconds: float | None = None):
-        self.api_key = api_key or os.environ.get("RAWG_API_KEY")
+        self.api_key = api_key or config.rawg_api_key
         if not self.api_key:
             raise ValueError("RAWG_API_KEY no está definida (revisa tu .env)")
         self.request_delay_seconds = (
