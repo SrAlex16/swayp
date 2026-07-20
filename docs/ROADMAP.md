@@ -11,6 +11,7 @@ Funcionalidades y mejoras pospuestas conscientemente (no olvidadas). Cuando se a
 - Almacenamiento incremental de vectores + publicación de modelo estilo blue-green — descartado por escala actual (catálogo pequeño); revisar si el catálogo crece a decenas de miles de ítems.
 - Dominios adicionales (ej. podcasts como dominio propio, no como subtipo de música, si se decide añadir).
 - Login real con sync multi-dispositivo (hoy identidad solo por `device_id` local).
+- Mejorar `scripts/populate_catalog.py` para samplear el catálogo de RAWG de forma diversa por género (ej. estratificado, no solo por popularidad/`-added`). Detectado en Fase 0: con los 200 juegos más populares, términos como Action (83%), Singleplayer (90%) u Open World (45%) aparecen en una fracción tan alta del catálogo que dejan de discriminar gustos — es un problema de composición del catálogo de prueba, no del motor de recomendación.
 
 ## Limpieza pendiente de rebranding (Anime_recommender → Swayp)
 

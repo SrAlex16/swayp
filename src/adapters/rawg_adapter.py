@@ -18,14 +18,17 @@ logger = logging.getLogger(__name__)
 DESCRIPTION_MAX_CHARS = 500
 MAX_TAGS = 10
 
-# Metadatos de plataforma/tienda a excluir del texto que entra al TF-IDF (no del campo
-# `tags` de Item, que sigue mostrando todos los tags sin filtrar para la UI): describen
-# dónde/cómo se distribuye o se juega el título, no su género o temática, y con
-# GENRE_TAGS_REPEAT repitiendo el bloque de tags x3 su presencia o ausencia pesaba
-# desproporcionadamente. Caso real detectado: Bloodborne (exclusivo de PlayStation, sin
-# ningún tag de Steam) perdía peso relativo de género frente a Terraria/Cuphead (con
-# "Steam Achievements", "Steam Cloud"... entre sus tags), cuyo ruido de plataforma se
-# multiplicaba x3 mientras Bloodborne no tenía nada que repetir en su lugar.
+# Metadatos de plataforma/tienda y características técnicas del juego a excluir del
+# texto que entra al TF-IDF (no del campo `tags` de Item, que sigue mostrando todos los
+# tags sin filtrar para la UI): describen dónde/cómo se distribuye, se juega o con
+# cuánta gente, no el género o la temática del título, y con GENRE_TAGS_REPEAT
+# repitiendo el bloque de tags x3 su presencia o ausencia pesaba desproporcionadamente.
+# Caso real detectado: Bloodborne (exclusivo de PlayStation, sin ningún tag de Steam)
+# perdía peso relativo de género frente a Terraria/Cuphead (con "Steam Achievements",
+# "Steam Cloud"... entre sus tags), cuyo ruido de plataforma se multiplicaba x3 mientras
+# Bloodborne no tenía nada que repetir en su lugar. "Co-op"/"Multiplayer"/"Singleplayer"
+# se suman por el mismo motivo (modo de juego, no género) más un problema de
+# tokenización: el guion en "Co-op" se separa en "co"+"op" sueltos, ruido adicional.
 TAG_DENYLIST = frozenset(
     tag.lower()
     for tag in (
@@ -46,6 +49,10 @@ TAG_DENYLIST = frozenset(
         "vr mod",
         "Free to Play",
         "In-App Purchases",
+        "Co-op",
+        "Cooperative",
+        "Multiplayer",
+        "Singleplayer",
     )
 )
 
