@@ -18,6 +18,37 @@ logger = logging.getLogger(__name__)
 DESCRIPTION_MAX_CHARS = 500
 MAX_TAGS = 10
 
+# Metadatos de plataforma/tienda a excluir del texto que entra al TF-IDF (no del campo
+# `tags` de Item, que sigue mostrando todos los tags sin filtrar para la UI): describen
+# dónde/cómo se distribuye o se juega el título, no su género o temática, y con
+# GENRE_TAGS_REPEAT repitiendo el bloque de tags x3 su presencia o ausencia pesaba
+# desproporcionadamente. Caso real detectado: Bloodborne (exclusivo de PlayStation, sin
+# ningún tag de Steam) perdía peso relativo de género frente a Terraria/Cuphead (con
+# "Steam Achievements", "Steam Cloud"... entre sus tags), cuyo ruido de plataforma se
+# multiplicaba x3 mientras Bloodborne no tenía nada que repetir en su lugar.
+TAG_DENYLIST = frozenset(
+    tag.lower()
+    for tag in (
+        "Steam Achievements",
+        "Steam Cloud",
+        "Steam Leaderboards",
+        "Steam Workshop",
+        "Valve Anti-Cheat enabled",
+        "steam-trading-cards",
+        "Full controller support",
+        "Partial Controller Support",
+        "controller support",
+        "Controller",
+        "Cross-Platform Multiplayer",
+        "Captions available",
+        "exclusive",
+        "true exclusive",
+        "vr mod",
+        "Free to Play",
+        "In-App Purchases",
+    )
+)
+
 
 class RawgAdapter(BaseAdapter):
     BASE_URL = "https://api.rawg.io/api"
@@ -96,6 +127,8 @@ class RawgAdapter(BaseAdapter):
         slug = data.get("slug")
         external_url = f"https://rawg.io/games/{slug}" if slug else None
 
+        vectorization_tags = [tag for tag in tags if tag.lower() not in TAG_DENYLIST]
+
         return Item(
             external_id=str(data.get("id")),
             domain=self.DOMAIN,
@@ -104,7 +137,7 @@ class RawgAdapter(BaseAdapter):
             text_for_vectorization=self._build_text_for_vectorization(
                 title=data.get("name", ""),
                 genres=genres,
-                tags=tags,
+                tags=vectorization_tags,
                 description=description,
             ),
             tags=genres + tags,
