@@ -111,11 +111,14 @@ tests/
 ### 3.3 Modelo de datos (SQLite)
 
 ```sql
--- Un dominio = "movies", "books", "games", "boardgames"
+-- Un dominio = "movies", "books", "games", "boardgames". Qué dominios existen (esta
+-- tabla) está deliberadamente separado de qué adapter de Python implementa cada uno:
+-- eso vive en código (src/adapters/registry.py), no en BD — domain_repository.py no
+-- importa nada de src/adapters/, y viceversa. Por eso esta tabla ya no tiene columna
+-- adapter_name (implementado así desde el bloque de registro de dominios).
 CREATE TABLE domains (
   code TEXT PRIMARY KEY,        -- 'movies'
   display_name TEXT NOT NULL,   -- 'Películas'
-  adapter_name TEXT NOT NULL,   -- 'tmdb_adapter'
   enabled BOOLEAN DEFAULT 1
 );
 

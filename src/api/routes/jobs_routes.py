@@ -4,6 +4,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
+from src.api.routes._shared import require_enabled_domain
 from src.core.errors import NotFoundError, ValidationError
 from src.core.logging_config import get_request_id
 from src.repositories import job_repository, user_repository
@@ -16,6 +17,8 @@ jobs_bp = Blueprint("jobs", __name__)
 
 @jobs_bp.route("/domains/<domain_code>/recommendations/jobs", methods=["POST"])
 def create_recommendation_job(domain_code: str):
+    require_enabled_domain(domain_code)
+
     body = request.get_json(silent=True) or {}
     device_id = body.get("device_id")
     if not device_id:

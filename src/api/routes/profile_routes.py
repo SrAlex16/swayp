@@ -3,6 +3,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
+from src.api.routes._shared import require_enabled_domain
 from src.core.errors import ValidationError
 from src.repositories import preference_repository, user_profile_repository, user_repository
 
@@ -97,6 +98,8 @@ def update_profile():
 
 @profile_bp.route("/users/domains/<domain_code>/preferences", methods=["GET"])
 def get_preferences(domain_code: str):
+    require_enabled_domain(domain_code)
+
     device_id = _require_device_id(request.args)
 
     user = user_repository.get_or_create_by_device_id(device_id)
@@ -107,6 +110,8 @@ def get_preferences(domain_code: str):
 
 @profile_bp.route("/users/domains/<domain_code>/preferences", methods=["PUT"])
 def update_preferences(domain_code: str):
+    require_enabled_domain(domain_code)
+
     body = request.get_json(silent=True) or {}
     device_id = _require_device_id(body)
 

@@ -3,6 +3,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
+from src.api.routes._shared import require_enabled_domain
 from src.core.errors import NotFoundError, ValidationError
 from src.model.item import Item
 from src.model.rating import Rating
@@ -68,6 +69,8 @@ def _validate_status(body: dict) -> str:
 
 @ratings_bp.route("/domains/<domain_code>/ratings", methods=["POST"])
 def create_rating(domain_code: str):
+    require_enabled_domain(domain_code)
+
     body = request.get_json(silent=True) or {}
 
     device_id = body.get("device_id")
@@ -104,6 +107,8 @@ def create_rating(domain_code: str):
 
 @ratings_bp.route("/domains/<domain_code>/ratings/<int:rating_id>", methods=["PATCH"])
 def update_rating(domain_code: str, rating_id: int):
+    require_enabled_domain(domain_code)
+
     body = request.get_json(silent=True) or {}
 
     device_id = body.get("device_id")
@@ -139,6 +144,8 @@ def update_rating(domain_code: str, rating_id: int):
 
 @ratings_bp.route("/domains/<domain_code>/pending-confirmation", methods=["GET"])
 def get_pending_confirmation(domain_code: str):
+    require_enabled_domain(domain_code)
+
     device_id = request.args.get("device_id")
     if not device_id:
         raise ValidationError("device_id es obligatorio")

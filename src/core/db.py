@@ -59,6 +59,12 @@ CREATE TABLE IF NOT EXISTS user_explicit_preferences (
     weight REAL NOT NULL DEFAULT 1.0,
     PRIMARY KEY (user_id, domain_code, tag)
 );
+
+CREATE TABLE IF NOT EXISTS domains (
+    code TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT 1
+);
 """
 
 # Pesos por defecto del modelo de señales (ver docs/ARCHITECTURE.md, sección 9). Solo
@@ -69,6 +75,14 @@ DEFAULT_SIGNAL_WEIGHTS = {
     "known_liked": 1.0,
     "known_disliked": -1.0,
 }
+
+# Qué dominios existen como concepto de producto (capa BD) — separado de qué adapter
+# de Python implementa cada uno (detalle de código, ver src/adapters/registry.py).
+# Solo se siembra si la tabla está vacía.
+DEFAULT_DOMAINS = [
+    ("games", "Videojuegos", 1),
+    ("movies", "Películas", 1),
+]
 
 
 def get_connection(database_path: str | None = None) -> sqlite3.Connection:
@@ -81,9 +95,10 @@ def get_connection(database_path: str | None = None) -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection | None = None) -> None:
-    """Crea (si no existen) users/ratings/jobs/signal_weights. Idempotente; no toca
-    `items`. Siembra los pesos por defecto de signal_weights solo si la tabla está
-    vacía."""
+    """Crea (si no existen) users/ratings/jobs/signal_weights/user_profile/
+    user_explicit_preferences/domains. Idempotente; no toca `items`. Siembra los
+    valores por defecto de signal_weights y domains solo si esas tablas están
+    vacías."""
     owns_connection = conn is None
     conn = conn or get_connection()
     try:
@@ -95,6 +110,14 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
             conn.executemany(
                 "INSERT INTO signal_weights (status, weight) VALUES (?, ?)",
                 list(DEFAULT_SIGNAL_WEIGHTS.items()),
+            )
+            conn.commit()
+
+        (domain_count,) = conn.execute("SELECT COUNT(*) FROM domains").fetchone()
+        if domain_count == 0:
+            conn.executemany(
+                "INSERT INTO domains (code, display_name, enabled) VALUES (?, ?, ?)",
+                DEFAULT_DOMAINS,
             )
             conn.commit()
     finally:

@@ -58,3 +58,12 @@
 - [x] `GET /users/domains/<domain_code>/preferences` — lista vacía si no hay ninguna, no 404
 - [x] `PUT /users/domains/<domain_code>/preferences` — reemplaza todas las preferencias del dominio, valida `weight` (0-1)
 - [x] Validado con curl end-to-end: perfil nuevo, actualización válida, `age` inválido, preferencias vacías, alta, reemplazo completo (confirmado que no se acumulan), y una recomendación real que refleja `strong_signal_count` y preferencias explícitas en el log
+
+## Registro de dominios
+
+- [x] Tabla `domains` (código, nombre, habilitado) — qué dominios existen, capa de producto/BD
+- [x] `src/adapters/registry.py` — qué adapter de Python implementa cada dominio, capa de código; `domain_repository.py` no importa nada de `src/adapters/` y viceversa
+- [x] `scripts/populate_catalog.py` usa el registry en vez de su propio diccionario local (comportamiento sin cambios)
+- [x] `GET /domains` — lista de dominios habilitados
+- [x] Validación de `domain_code` centralizada (`src/api/routes/_shared.py`) y aplicada en las 4 rutas que reciben `<domain_code>` en la URL (jobs, ratings, seed, preferences) — un dominio inexistente ahora da 404 en vez de seguir silenciosamente con un catálogo vacío
+- [x] Validado con curl: `GET /domains` devuelve games+movies, `seed` de un dominio real sigue igual, `seed` de un dominio inventado da 404, `populate_catalog.py` sin `--domain` sigue funcionando igual tras el refactor

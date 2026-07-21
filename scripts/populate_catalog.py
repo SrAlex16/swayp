@@ -14,17 +14,9 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from src.adapters.base_adapter import BaseAdapter  # noqa: E402
-from src.adapters.rawg_adapter import RawgAdapter  # noqa: E402
-from src.adapters.tmdb_adapter import TmdbAdapter  # noqa: E402
+from src.adapters.registry import ADAPTER_REGISTRY  # noqa: E402
 from src.model.item import Item  # noqa: E402
 
-# Un dominio nuevo = una entrada más aquí, nada más (ver
-# docs/decisions/0001-item-generico-y-adapters.md).
-ADAPTERS_BY_DOMAIN: dict[str, type[BaseAdapter]] = {
-    "games": RawgAdapter,
-    "movies": TmdbAdapter,
-}
 DEFAULT_DOMAIN = "games"
 
 DB_PATH = ROOT_DIR / "data" / "swayp.db"
@@ -101,7 +93,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Puebla el catálogo de un dominio")
     parser.add_argument(
         "--domain",
-        choices=sorted(ADAPTERS_BY_DOMAIN),
+        choices=sorted(ADAPTER_REGISTRY),
         default=DEFAULT_DOMAIN,
         help=f"Dominio a poblar (default: {DEFAULT_DOMAIN})",
     )
@@ -110,7 +102,7 @@ def main() -> None:
 
     load_dotenv()
 
-    adapter_cls = ADAPTERS_BY_DOMAIN[args.domain]
+    adapter_cls = ADAPTER_REGISTRY[args.domain]
     adapter = adapter_cls()
     logger.info("Descargando %d ítems populares de '%s' (%s)...", args.count, args.domain, adapter_cls.__name__)
     items = adapter.fetch_popular(args.count)

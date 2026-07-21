@@ -5,6 +5,7 @@ import time
 from flask import Flask, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from src.api.routes.domains_routes import domains_bp
 from src.api.routes.jobs_routes import jobs_bp
 from src.api.routes.profile_routes import profile_bp
 from src.api.routes.ratings_routes import ratings_bp
@@ -101,6 +102,7 @@ def create_app() -> Flask:
         fallback = AppError("Error interno inesperado")
         return jsonify(fallback.to_dict(get_request_id())), fallback.http_status
 
+    app.register_blueprint(domains_bp, url_prefix="/api/v1")
     app.register_blueprint(jobs_bp, url_prefix="/api/v1")
     app.register_blueprint(profile_bp, url_prefix="/api/v1")
     app.register_blueprint(ratings_bp, url_prefix="/api/v1")

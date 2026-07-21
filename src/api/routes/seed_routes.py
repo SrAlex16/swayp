@@ -4,6 +4,7 @@ import random
 
 from flask import Blueprint, jsonify, request
 
+from src.api.routes._shared import require_enabled_domain
 from src.core.errors import ValidationError
 from src.model.item import Item
 from src.repositories import item_repository, rating_repository, user_repository
@@ -29,6 +30,8 @@ def _item_to_dict(item: Item) -> dict:
 
 @seed_bp.route("/domains/<domain_code>/seed", methods=["GET"])
 def get_seed(domain_code: str):
+    require_enabled_domain(domain_code)
+
     device_id = request.args.get("device_id")
     if not device_id:
         raise ValidationError("device_id es obligatorio")
