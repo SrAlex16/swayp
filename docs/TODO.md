@@ -50,3 +50,11 @@
 - [x] `GET /domains/<domain_code>/pending-confirmation` — ratings `interested` sin confirmar, con datos del item para listarlos directamente
 - [x] `rating_repository`: `get_by_id`, `get_by_status`, `update_status`
 - [x] Validado con curl end-to-end: alta directa en `known_liked`, alta `interested`, aparece en pendientes, `PATCH` a `known_liked`, desaparece de pendientes, y los 2 casos de error (rating inexistente, status inválido)
+
+## Perfil de usuario — capa de API
+
+- [x] `GET /users/profile` — perfil vacío es 200 con `{age: null, gender: null}`, no 404
+- [x] `PUT /users/profile` — valida `age` (1-120 si viene), `gender` libre sin validar
+- [x] `GET /users/domains/<domain_code>/preferences` — lista vacía si no hay ninguna, no 404
+- [x] `PUT /users/domains/<domain_code>/preferences` — reemplaza todas las preferencias del dominio, valida `weight` (0-1)
+- [x] Validado con curl end-to-end: perfil nuevo, actualización válida, `age` inválido, preferencias vacías, alta, reemplazo completo (confirmado que no se acumulan), y una recomendación real que refleja `strong_signal_count` y preferencias explícitas en el log
