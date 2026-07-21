@@ -1,16 +1,17 @@
 # src/services/recommendation_service.py
 import logging
+from collections import Counter
 
 from src.core.errors import ValidationError
 from src.model.tfidf_engine import TFIDFRecommendationEngine
-from src.repositories import item_repository, rating_repository
+from src.repositories import item_repository, rating_repository, signal_weight_repository
 
 logger = logging.getLogger(__name__)
 
-# Señal simple de esta fase: solo "interested" cuenta como gusto para el motor. No
-# distingue todavía "ya lo conozco" (known_liked/known_disliked) — ver
-# docs/ARCHITECTURE.md, roadmap de fases, Fase 3 (señales completas).
-LIKED_STATUS = "interested"
+# Todos los status posibles de un rating (ver docs/ARCHITECTURE.md sección 9,
+# signal_weights) — se reportan siempre en el desglose de logging, aunque esta fase
+# solo produzca interested/rejected a través de la API.
+KNOWN_SIGNAL_STATUSES = ("interested", "rejected", "known_liked", "known_disliked")
 
 
 def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) -> list[dict]:
@@ -25,16 +26,46 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
     )
 
     ratings = rating_repository.get_by_user(user_id, domain_code)
-    liked_ratings = [rating for rating in ratings if rating.status == LIKED_STATUS]
-
-    if not liked_ratings:
+    if not ratings:
         raise ValidationError("El usuario no tiene ratings en este dominio todavía")
 
-    liked_items = item_repository.get_by_ids([rating.item_id for rating in liked_ratings])
+    signal_weights = signal_weight_repository.get_all()
+
+    rated_item_ids: list[int] = []
+    weight_by_item_id: dict[int, float] = {}
+    status_counts: Counter[str] = Counter()
+
+    for rating in ratings:
+        weight = signal_weights.get(rating.status)
+        if weight is None:
+            logger.warning(
+                "status de rating sin peso configurado en signal_weights, se ignora esa señal",
+                extra={
+                    "layer": "service",
+                    "event": "unknown_signal_status",
+                    "rating_id": rating.id,
+                    "status": rating.status,
+                },
+            )
+            continue
+        rated_item_ids.append(rating.item_id)
+        weight_by_item_id[rating.item_id] = weight
+        status_counts[rating.status] += 1
+
+    items_by_id = {item.id: item for item in item_repository.get_by_ids(rated_item_ids)}
+    rated_items = [
+        (items_by_id[item_id], weight_by_item_id[item_id])
+        for item_id in rated_item_ids
+        if item_id in items_by_id
+    ]
+
+    if not rated_items:
+        raise ValidationError("El usuario no tiene ratings en este dominio todavía")
+
     catalog = item_repository.get_all(domain_code)
 
     engine = TFIDFRecommendationEngine()
-    recommendations = engine.recommend(liked_items, catalog, top_n)
+    recommendations = engine.recommend(rated_items, catalog, top_n)
 
     logger.info(
         "recomendaciones generadas",
@@ -43,9 +74,10 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
             "event": "generate_recommendations_done",
             "user_id": user_id,
             "domain_code": domain_code,
-            "liked_count": len(liked_items),
+            "rated_count": len(rated_items),
             "catalog_size": len(catalog),
             "result_count": len(recommendations),
+            "signal_breakdown": {status: status_counts.get(status, 0) for status in KNOWN_SIGNAL_STATUSES},
         },
     )
 

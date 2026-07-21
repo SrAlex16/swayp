@@ -39,7 +39,21 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS signal_weights (
+    status TEXT PRIMARY KEY,
+    weight REAL NOT NULL
+);
 """
+
+# Pesos por defecto del modelo de señales (ver docs/ARCHITECTURE.md, sección 9). Solo
+# se siembran si la tabla está vacía, para no pisar un ajuste manual posterior.
+DEFAULT_SIGNAL_WEIGHTS = {
+    "rejected": -1.0,
+    "interested": 0.3,
+    "known_liked": 1.0,
+    "known_disliked": -1.0,
+}
 
 
 def get_connection(database_path: str | None = None) -> sqlite3.Connection:
@@ -52,12 +66,22 @@ def get_connection(database_path: str | None = None) -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection | None = None) -> None:
-    """Crea (si no existen) users/ratings/jobs. Idempotente; no toca `items`."""
+    """Crea (si no existen) users/ratings/jobs/signal_weights. Idempotente; no toca
+    `items`. Siembra los pesos por defecto de signal_weights solo si la tabla está
+    vacía."""
     owns_connection = conn is None
     conn = conn or get_connection()
     try:
         conn.executescript(SCHEMA)
         conn.commit()
+
+        (count,) = conn.execute("SELECT COUNT(*) FROM signal_weights").fetchone()
+        if count == 0:
+            conn.executemany(
+                "INSERT INTO signal_weights (status, weight) VALUES (?, ?)",
+                list(DEFAULT_SIGNAL_WEIGHTS.items()),
+            )
+            conn.commit()
     finally:
         if owns_connection:
             conn.close()

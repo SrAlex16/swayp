@@ -123,7 +123,10 @@ def main() -> None:
             else:
                 print("   términos TF-IDF compartidos: (ninguno)")
     else:
-        recommendations = engine.recommend(liked_items, catalog, top_n=args.top)
+        # recommend.py no tiene concepto de señales negativas: cada like se pasa con
+        # peso 1.0 (ver src/model/engine.py para la nueva firma de recommend()).
+        rated_items = [(item, 1.0) for item in liked_items]
+        recommendations = engine.recommend(rated_items, catalog, top_n=args.top)
         for i, (item, score) in enumerate(recommendations, start=1):
             print(f"{i}. {item.title} (score: {score:.2f})")
 

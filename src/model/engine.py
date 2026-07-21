@@ -9,7 +9,16 @@ class RecommendationEngine(ABC):
 
     @abstractmethod
     def recommend(
-        self, liked_items: list[Item], catalog: list[Item], top_n: int
+        self, rated_items: list[tuple[Item, float]], catalog: list[Item], top_n: int
     ) -> list[tuple[Item, float]]:
-        """Devuelve hasta top_n pares (Item, score) del catalog, excluyendo liked_items."""
+        """Devuelve hasta top_n pares (Item, score) del catalog, excluyendo cualquier
+        ítem presente en rated_items.
+
+        rated_items es una lista de pares (Item, peso): el peso es el de la señal que
+        originó esa valoración (ver docs/ARCHITECTURE.md sección 9, signal_weights) y
+        puede ser negativo. Un peso negativo debe alejar el vector de perfil de ese
+        ítem, no limitarse a excluirlo del catálogo de candidatos — un rechazo activo
+        empuja la recomendación en la dirección opuesta a ese ítem, no equivale a no
+        haber dicho nada sobre él.
+        """
         raise NotImplementedError

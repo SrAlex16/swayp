@@ -1,4 +1,5 @@
 # src/model/tfidf_engine.py
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -8,6 +9,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from src.model.engine import RecommendationEngine
 from src.model.item import Item
+
+logger = logging.getLogger(__name__)
 
 # Techo del peso de comunidad, ver docs/ARCHITECTURE.md sección 9 ("w_community
 # tiene techo fijo, nunca domina"): sin límite, el score de comunidad acaba
@@ -61,9 +64,9 @@ class TFIDFRecommendationEngine(RecommendationEngine):
     ENGINE_VERSION = "tfidf-0.1"
 
     def recommend(
-        self, liked_items: list[Item], catalog: list[Item], top_n: int
+        self, rated_items: list[tuple[Item, float]], catalog: list[Item], top_n: int
     ) -> list[tuple[Item, float]]:
-        scored = self._score_catalog(liked_items, catalog)
+        scored = self._score_catalog(rated_items, catalog)
         scored.sort(key=lambda entry: entry.final_score, reverse=True)
         return [(entry.item, entry.final_score) for entry in scored[:top_n]]
 
@@ -76,19 +79,21 @@ class TFIDFRecommendationEngine(RecommendationEngine):
     ) -> list[ScoredItem]:
         """Como recommend(), pero desglosando similarity_score/community_score y los
         términos TF-IDF que cada recomendación comparte con el perfil (uso: --debug en
-        recommend.py)."""
-        scored = self._score_catalog(liked_items, catalog, shared_terms=shared_terms)
+        recommend.py). Trata cada ítem de liked_items como señal positiva de peso 1.0
+        — recommend.py todavía no tiene concepto de señales negativas."""
+        rated_items = [(item, 1.0) for item in liked_items]
+        scored = self._score_catalog(rated_items, catalog, shared_terms=shared_terms)
         scored.sort(key=lambda entry: entry.final_score, reverse=True)
         return scored[:top_n]
 
     def _score_catalog(
         self,
-        liked_items: list[Item],
+        rated_items: list[tuple[Item, float]],
         catalog: list[Item],
         shared_terms: int | None = None,
     ) -> list[ScoredItem]:
-        if not liked_items:
-            raise ValueError("liked_items no puede estar vacío")
+        if not rated_items:
+            raise ValueError("rated_items no puede estar vacío")
         if not catalog:
             return []
 
@@ -109,14 +114,49 @@ class TFIDFRecommendationEngine(RecommendationEngine):
             svd = TruncatedSVD(n_components=n_components, random_state=42)
             latent_matrix = svd.fit_transform(tfidf_matrix)
 
-        liked_keys = {(item.domain, item.external_id) for item in liked_items}
-        liked_indices = [
-            i for i, item in enumerate(catalog) if (item.domain, item.external_id) in liked_keys
+        weight_by_key = {(item.domain, item.external_id): weight for item, weight in rated_items}
+        rated_indices_weights = [
+            (i, weight_by_key[(item.domain, item.external_id)])
+            for i, item in enumerate(catalog)
+            if (item.domain, item.external_id) in weight_by_key
         ]
-        if not liked_indices:
-            raise ValueError("Ninguno de los liked_items está presente en el catalog")
+        if not rated_indices_weights:
+            raise ValueError("Ninguno de los rated_items está presente en el catalog")
 
-        profile_vector = latent_matrix[liked_indices].mean(axis=0, keepdims=True)
+        rated_indices = [i for i, _ in rated_indices_weights]
+        rated_indices_set = set(rated_indices)
+        weights = np.array([w for _, w in rated_indices_weights], dtype=float)
+        abs_weight_sum = float(np.sum(np.abs(weights)))
+
+        if abs_weight_sum == 0:
+            # No hay forma de construir un vector de perfil (todos los pesos se
+            # cancelan o son 0): se degrada a ordenar por community_score, que sigue
+            # siendo una señal válida aunque no haya afinidad de contenido que medir.
+            logger.warning(
+                "suma de pesos absolutos de rated_items es 0; no se puede construir "
+                "un vector de perfil, se ordena el catálogo solo por community_score",
+                extra={
+                    "layer": "model",
+                    "event": "zero_weight_profile_fallback",
+                    "rated_count": len(rated_items),
+                },
+            )
+            return [
+                ScoredItem(
+                    item=item,
+                    final_score=float(item.community_score),
+                    similarity_score=0.0,
+                    community_score=float(item.community_score),
+                    shared_terms=[] if shared_terms else None,
+                )
+                for i, item in enumerate(catalog)
+                if i not in rated_indices_set
+            ]
+
+        profile_vector = (
+            np.sum(latent_matrix[rated_indices] * weights[:, None], axis=0, keepdims=True)
+            / abs_weight_sum
+        )
         similarities = cosine_similarity(profile_vector, latent_matrix)[0]
 
         # Los términos compartidos se calculan en el espacio TF-IDF crudo (antes de
@@ -126,12 +166,12 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         profile_tfidf_row = None
         if shared_terms:
             feature_names = vectorizer.get_feature_names_out()
-            profile_tfidf_row = np.asarray(tfidf_matrix[liked_indices].mean(axis=0)).ravel()
+            rated_tfidf_rows = tfidf_matrix[rated_indices].toarray()
+            profile_tfidf_row = np.sum(rated_tfidf_rows * weights[:, None], axis=0) / abs_weight_sum
 
-        liked_indices_set = set(liked_indices)
         scored: list[ScoredItem] = []
         for i, item in enumerate(catalog):
-            if i in liked_indices_set:
+            if i in rated_indices_set:
                 continue
 
             similarity_score = float(similarities[i])
