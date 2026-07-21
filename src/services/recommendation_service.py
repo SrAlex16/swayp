@@ -4,7 +4,7 @@ from collections import Counter
 
 from src.core.errors import ValidationError
 from src.model.tfidf_engine import TFIDFRecommendationEngine
-from src.repositories import item_repository, rating_repository, signal_weight_repository
+from src.repositories import item_repository, preference_repository, rating_repository, signal_weight_repository
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 # signal_weights) — se reportan siempre en el desglose de logging, aunque esta fase
 # solo produzca interested/rejected a través de la API.
 KNOWN_SIGNAL_STATUSES = ("interested", "rejected", "known_liked", "known_disliked")
+
+# Señales "fuertes" para el cálculo de shrinkage (ver docs/ARCHITECTURE.md sección 9 y
+# TFIDFRecommendationEngine.recommend): known_liked/known_disliked, no interested
+# (que es una señal débil, ver signal_weights).
+STRONG_SIGNAL_STATUSES = ("known_liked", "known_disliked")
 
 
 def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) -> list[dict]:
@@ -28,6 +33,8 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
     ratings = rating_repository.get_by_user(user_id, domain_code)
     if not ratings:
         raise ValidationError("El usuario no tiene ratings en este dominio todavía")
+
+    strong_signal_count = sum(1 for rating in ratings if rating.status in STRONG_SIGNAL_STATUSES)
 
     signal_weights = signal_weight_repository.get_all()
 
@@ -62,10 +69,17 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
     if not rated_items:
         raise ValidationError("El usuario no tiene ratings en este dominio todavía")
 
+    explicit_preferences = preference_repository.get_by_domain(user_id, domain_code)
     catalog = item_repository.get_all(domain_code)
 
     engine = TFIDFRecommendationEngine()
-    recommendations = engine.recommend(rated_items, catalog, top_n)
+    recommendations = engine.recommend(
+        rated_items,
+        catalog,
+        top_n,
+        explicit_preferences=explicit_preferences,
+        strong_signal_count=strong_signal_count,
+    )
 
     logger.info(
         "recomendaciones generadas",
@@ -78,6 +92,8 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
             "catalog_size": len(catalog),
             "result_count": len(recommendations),
             "signal_breakdown": {status: status_counts.get(status, 0) for status in KNOWN_SIGNAL_STATUSES},
+            "explicit_preferences_count": len(explicit_preferences),
+            "strong_signal_count": strong_signal_count,
         },
     )
 

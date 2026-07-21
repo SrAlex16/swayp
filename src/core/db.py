@@ -44,6 +44,21 @@ CREATE TABLE IF NOT EXISTS signal_weights (
     status TEXT PRIMARY KEY,
     weight REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_profile (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    age INTEGER,
+    gender TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_explicit_preferences (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    domain_code TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    weight REAL NOT NULL DEFAULT 1.0,
+    PRIMARY KEY (user_id, domain_code, tag)
+);
 """
 
 # Pesos por defecto del modelo de señales (ver docs/ARCHITECTURE.md, sección 9). Solo
