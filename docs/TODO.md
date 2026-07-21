@@ -42,3 +42,11 @@
 - [x] `.env.example` con las 7 variables de entorno del proyecto
 
 **Próxima decisión pendiente**: filtros (`domain_facets`), perfil de usuario, o completar el modelo de señales (`known_liked`/`known_disliked`, toggle 'ya lo conozco') — ver docs/ARCHITECTURE.md, secciones 7-9.
+
+## Modelo de señales — capa de API
+
+- [x] `POST /domains/<domain_code>/ratings` acepta los 4 status (`interested`, `rejected`, `known_liked`, `known_disliked`), no solo los 2 de la Fase 1
+- [x] `PATCH /domains/<domain_code>/ratings/<rating_id>` para actualizar el status de un rating existente (flujo de confirmación de la pantalla de Guardados, ARCHITECTURE.md sección 7.3)
+- [x] `GET /domains/<domain_code>/pending-confirmation` — ratings `interested` sin confirmar, con datos del item para listarlos directamente
+- [x] `rating_repository`: `get_by_id`, `get_by_status`, `update_status`
+- [x] Validado con curl end-to-end: alta directa en `known_liked`, alta `interested`, aparece en pendientes, `PATCH` a `known_liked`, desaparece de pendientes, y los 2 casos de error (rating inexistente, status inválido)
