@@ -74,3 +74,14 @@
 - [x] Decisión tomada: conjunto de reglas por defecto de ruff (E4/E7/E9 + F), sin reglas de estilo adicionales por ahora — ver docs/decisions/0005-conjunto-de-reglas-de-ruff.md
 - [x] Código formateado con `ruff format .` (29 archivos reformateados); confirmado con `pytest -v` que el formateo no cambió comportamiento (44/44 tests siguen pasando)
 - [x] `.github/workflows/backend-ci.yml` — lint (`ruff check`) + formato (`ruff format --check`) + tests (`pytest -v`) en cada push/PR a `main`
+
+## Testing (docs/ARCHITECTURE.md sección 5)
+
+- [x] Infraestructura de pytest (`pytest.ini`, `tests/conftest.py`): fixture `temp_db` (BD SQLite aislada en `tmp_path`, valida el seed de `domains`/`signal_weights` en cada test) y `sample_items` (10 items sintéticos para el motor)
+- [x] Tests del motor de recomendación (`tests/model/test_tfidf_engine.py`): señales positivas/negativas, fallback de peso cero, exclusión de items ya valorados, shrinkage con y sin preferencias explícitas, `top_n`, lista de ratings vacía
+- [x] Contract tests de adapters (`tests/adapters/`, RAWG + TMDB, vía `requests_mock`): normalización de `community_score`, `TAG_DENYLIST`, `adapter_version`/`enrichment_version`, manejo de fallos de la API externa sin reventar
+- [x] Tests de repositories (`tests/repositories/`, los 8 repos): incluye el hallazgo del `UNIQUE(user_id, item_id)` sin manejar en `rating_repository.create()`, resuelto con `ConflictError` + `get_by_user_and_item` en la capa de API
+- [x] Tests de integración de API (`tests/integration/test_full_flow.py`) vía `app.test_client()` de Flask contra `temp_db`: flujo completo seed→ratings→job→resultado, 404 en las 4 rutas con `domain_code` inválido, idempotencia y conflicto de ratings duplicados, flujo de pending-confirmation, perfil y preferencias (incluido el reemplazo total, no fusión), job inexistente, y `X-Request-Id` presente en toda respuesta
+- [x] Suite completa: 58 tests, `pytest -v` en verde
+
+**Suite de testing completa.** Cubre motor, adapters, repositories y API de punta a punta.
