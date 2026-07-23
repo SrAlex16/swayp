@@ -6,10 +6,6 @@ libros y más, con un único motor de recomendación agnóstico de dominio. Cada
 integra mediante un `adapter` propio (ver `docs/ARCHITECTURE.md`), sin tocar el motor ni
 la mayoría de la UI.
 
-Sucesor del proyecto anterior (Anime Recommender, centrado en un solo dominio y
-dependiente de una cuenta pública de MyAnimeList). El código legacy relevante como
-referencia visual se conserva en [`legacy_reference/`](./legacy_reference).
-
 ## Estado actual
 
 El proyecto está en la **Fase 0** del roadmap de implementación (ver
