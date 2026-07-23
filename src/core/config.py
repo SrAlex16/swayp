@@ -2,6 +2,7 @@
 """Configuración centralizada vía variables de entorno (ver docs/ARCHITECTURE.md,
 sección 3.7): sustituye los os.environ.get() dispersos por el código (usada por los
 adapters de cada dominio, ej. rawg_adapter.py, tmdb_adapter.py)."""
+
 import os
 from dataclasses import dataclass
 from pathlib import Path

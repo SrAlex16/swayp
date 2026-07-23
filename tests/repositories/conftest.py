@@ -6,6 +6,7 @@ desde la Fase 0 ... y no se toca aquí en absoluto"; en producción la crea
 scripts/populate_catalog.py. Aquí se replica su esquema exacto (mismo SQL que ese
 script) para poder testear item_repository/rating_repository de forma aislada con
 temp_db, sin tocar src/core/db.py ni scripts/populate_catalog.py."""
+
 import json
 
 import pytest

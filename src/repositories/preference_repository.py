@@ -29,7 +29,9 @@ def get_by_domain(user_id: int, domain_code: str) -> list[tuple[str, float]]:
         conn.close()
 
 
-def set_preferences(user_id: int, domain_code: str, preferences: list[tuple[str, float]]) -> None:
+def set_preferences(
+    user_id: int, domain_code: str, preferences: list[tuple[str, float]]
+) -> None:
     """Reemplaza todas las preferencias de user_id+domain_code por `preferences`:
     borra las que ya no estén en la lista, inserta/actualiza el resto."""
     conn = get_connection()

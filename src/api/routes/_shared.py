@@ -1,5 +1,6 @@
 # src/api/routes/_shared.py
 """Helpers compartidos entre blueprints de src/api/routes/ (no es un blueprint en sí)."""
+
 from src.core.errors import NotFoundError
 from src.repositories import domain_repository
 

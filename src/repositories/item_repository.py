@@ -1,6 +1,7 @@
 # src/repositories/item_repository.py
 """Lectura de la tabla `items` (poblada por scripts/populate_catalog.py). Extraído de
 recommend.py para que la lógica de mapeo fila->Item viva en un solo sitio."""
+
 import json
 import logging
 import sqlite3

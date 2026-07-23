@@ -38,7 +38,9 @@ def get(user_id: int) -> UserProfile | None:
         conn.close()
 
 
-def upsert(user_id: int, age: int | None = None, gender: str | None = None) -> UserProfile:
+def upsert(
+    user_id: int, age: int | None = None, gender: str | None = None
+) -> UserProfile:
     conn = get_connection()
     try:
         conn.execute(

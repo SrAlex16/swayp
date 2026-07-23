@@ -5,7 +5,11 @@ from flask import Blueprint, jsonify, request
 
 from src.api.routes._shared import require_enabled_domain
 from src.core.errors import ValidationError
-from src.repositories import preference_repository, user_profile_repository, user_repository
+from src.repositories import (
+    preference_repository,
+    user_profile_repository,
+    user_repository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,11 @@ MAX_PREFERENCE_WEIGHT = 1.0
 def _validate_age(age: object) -> int | None:
     if age is None:
         return None
-    if isinstance(age, bool) or not isinstance(age, int) or not (MIN_AGE <= age <= MAX_AGE):
+    if (
+        isinstance(age, bool)
+        or not isinstance(age, int)
+        or not (MIN_AGE <= age <= MAX_AGE)
+    ):
         raise ValidationError(f"age debe ser un entero entre {MIN_AGE} y {MAX_AGE}")
     return age
 

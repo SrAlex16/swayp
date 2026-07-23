@@ -4,6 +4,7 @@ código, separado de qué dominios existen como concepto de producto (tabla `dom
 en BD, ver src/repositories/domain_repository.py, que no importa nada de este
 módulo). Un dominio nuevo = una entrada más aquí (ver
 docs/decisions/0001-item-generico-y-adapters.md)."""
+
 from src.adapters.base_adapter import BaseAdapter
 from src.adapters.rawg_adapter import RawgAdapter
 from src.adapters.tmdb_adapter import TmdbAdapter

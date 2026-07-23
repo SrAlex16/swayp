@@ -21,7 +21,9 @@ def _row_to_rating(row: sqlite3.Row) -> Rating:
     )
 
 
-def create(user_id: int, item_id: int, domain_code: str, status: str, source: str) -> Rating:
+def create(
+    user_id: int, item_id: int, domain_code: str, status: str, source: str
+) -> Rating:
     conn = get_connection()
     try:
         cursor = conn.execute(
@@ -80,7 +82,8 @@ def get_by_user_and_item(user_id: int, item_id: int) -> Rating | None:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT * FROM ratings WHERE user_id = ? AND item_id = ?", (user_id, item_id)
+            "SELECT * FROM ratings WHERE user_id = ? AND item_id = ?",
+            (user_id, item_id),
         ).fetchone()
         rating = _row_to_rating(row) if row is not None else None
         logger.debug(
@@ -125,7 +128,9 @@ def get_by_status(user_id: int, domain_code: str, status: str) -> list[Rating]:
 def get_by_id(rating_id: int) -> Rating | None:
     conn = get_connection()
     try:
-        row = conn.execute("SELECT * FROM ratings WHERE id = ?", (rating_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM ratings WHERE id = ?", (rating_id,)
+        ).fetchone()
         rating = _row_to_rating(row) if row is not None else None
         logger.debug(
             "rating buscado por id",
@@ -149,7 +154,9 @@ def update_status(rating_id: int, status: str) -> Rating | None:
             (status, rating_id),
         )
         conn.commit()
-        row = conn.execute("SELECT * FROM ratings WHERE id = ?", (rating_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM ratings WHERE id = ?", (rating_id,)
+        ).fetchone()
         rating = _row_to_rating(row) if row is not None else None
         logger.debug(
             "rating actualizado",

@@ -4,7 +4,12 @@ from collections import Counter
 
 from src.core.errors import ValidationError
 from src.model.tfidf_engine import TFIDFRecommendationEngine
-from src.repositories import item_repository, preference_repository, rating_repository, signal_weight_repository
+from src.repositories import (
+    item_repository,
+    preference_repository,
+    rating_repository,
+    signal_weight_repository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +24,9 @@ KNOWN_SIGNAL_STATUSES = ("interested", "rejected", "known_liked", "known_dislike
 STRONG_SIGNAL_STATUSES = ("known_liked", "known_disliked")
 
 
-def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) -> list[dict]:
+def generate_recommendations(
+    user_id: int, domain_code: str, top_n: int = 10
+) -> list[dict]:
     logger.info(
         "generando recomendaciones",
         extra={
@@ -34,7 +41,9 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
     if not ratings:
         raise ValidationError("El usuario no tiene ratings en este dominio todavía")
 
-    strong_signal_count = sum(1 for rating in ratings if rating.status in STRONG_SIGNAL_STATUSES)
+    strong_signal_count = sum(
+        1 for rating in ratings if rating.status in STRONG_SIGNAL_STATUSES
+    )
 
     signal_weights = signal_weight_repository.get_all()
 
@@ -91,7 +100,9 @@ def generate_recommendations(user_id: int, domain_code: str, top_n: int = 10) ->
             "rated_count": len(rated_items),
             "catalog_size": len(catalog),
             "result_count": len(recommendations),
-            "signal_breakdown": {status: status_counts.get(status, 0) for status in KNOWN_SIGNAL_STATUSES},
+            "signal_breakdown": {
+                status: status_counts.get(status, 0) for status in KNOWN_SIGNAL_STATUSES
+            },
             "explicit_preferences_count": len(explicit_preferences),
             "strong_signal_count": strong_signal_count,
         },

@@ -50,7 +50,10 @@ def _resolve_item(domain_code: str, body: dict) -> Item:
     elif item_title:
         needle = str(item_title).strip().lower()
         catalog = item_repository.get_all(domain_code)
-        item = next((candidate for candidate in catalog if needle in candidate.title.lower()), None)
+        item = next(
+            (candidate for candidate in catalog if needle in candidate.title.lower()),
+            None,
+        )
     else:
         raise ValidationError("Debes indicar item_id o item_title")
 
@@ -63,7 +66,9 @@ def _resolve_item(domain_code: str, body: dict) -> Item:
 def _validate_status(body: dict) -> str:
     status = body.get("status")
     if status not in VALID_STATUSES:
-        raise ValidationError(f"status debe ser uno de: {', '.join(sorted(VALID_STATUSES))}")
+        raise ValidationError(
+            f"status debe ser uno de: {', '.join(sorted(VALID_STATUSES))}"
+        )
     return status
 
 
@@ -178,7 +183,9 @@ def get_pending_confirmation(domain_code: str):
         raise ValidationError("device_id es obligatorio")
 
     user = user_repository.get_or_create_by_device_id(device_id)
-    ratings = rating_repository.get_by_status(user.id, domain_code, PENDING_CONFIRMATION_STATUS)
+    ratings = rating_repository.get_by_status(
+        user.id, domain_code, PENDING_CONFIRMATION_STATUS
+    )
 
     pending = []
     for rating in ratings:

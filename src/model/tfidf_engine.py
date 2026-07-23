@@ -128,18 +128,23 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         # índice es len(catalog) (el último).
         explicit_row_index: int | None = None
         if explicit_preferences:
-            corpus = corpus + [self._build_explicit_preferences_text(explicit_preferences)]
+            corpus = corpus + [
+                self._build_explicit_preferences_text(explicit_preferences)
+            ]
             explicit_row_index = len(catalog)
 
         vectorizer = TfidfVectorizer(
-            stop_words="english", max_features=MAX_TFIDF_FEATURES, max_df=MAX_DOCUMENT_FREQUENCY
+            stop_words="english",
+            max_features=MAX_TFIDF_FEATURES,
+            max_df=MAX_DOCUMENT_FREQUENCY,
         )
         tfidf_matrix = vectorizer.fit_transform(corpus)
 
         # Se calcula sobre len(catalog), no sobre len(corpus): el nº de componentes no
         # debe depender de si el usuario declaró preferencias explícitas o no.
         target_components = max(
-            MIN_SVD_COMPONENTS, min(MAX_SVD_COMPONENTS, len(catalog) // SVD_COMPONENTS_PER_ITEM)
+            MIN_SVD_COMPONENTS,
+            min(MAX_SVD_COMPONENTS, len(catalog) // SVD_COMPONENTS_PER_ITEM),
         )
         n_components = min(target_components, min(tfidf_matrix.shape) - 1)
         if n_components < 1:
@@ -149,7 +154,9 @@ class TFIDFRecommendationEngine(RecommendationEngine):
             svd = TruncatedSVD(n_components=n_components, random_state=42)
             latent_matrix = svd.fit_transform(tfidf_matrix)
 
-        weight_by_key = {(item.domain, item.external_id): weight for item, weight in rated_items}
+        weight_by_key = {
+            (item.domain, item.external_id): weight for item, weight in rated_items
+        }
         rated_indices_weights = [
             (i, weight_by_key[(item.domain, item.external_id)])
             for i, item in enumerate(catalog)
@@ -191,13 +198,18 @@ class TFIDFRecommendationEngine(RecommendationEngine):
             ]
 
         implicit_vector = (
-            np.sum(latent_matrix[rated_indices] * weights[:, None], axis=0, keepdims=True)
+            np.sum(
+                latent_matrix[rated_indices] * weights[:, None], axis=0, keepdims=True
+            )
             / abs_weight_sum
         )
 
         if explicit_row_index is not None:
             explicit_vector = latent_matrix[explicit_row_index : explicit_row_index + 1]
-            w_explicit = max(MIN_EXPLICIT_WEIGHT, 1 - strong_signal_count / STRONG_SIGNAL_SHRINKAGE_CEILING)
+            w_explicit = max(
+                MIN_EXPLICIT_WEIGHT,
+                1 - strong_signal_count / STRONG_SIGNAL_SHRINKAGE_CEILING,
+            )
             w_implicit = 1 - w_explicit
             profile_vector = w_implicit * implicit_vector + w_explicit * explicit_vector
             logger.debug(
@@ -228,7 +240,9 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         if shared_terms:
             feature_names = vectorizer.get_feature_names_out()
             rated_tfidf_rows = tfidf_matrix[rated_indices].toarray()
-            profile_tfidf_row = np.sum(rated_tfidf_rows * weights[:, None], axis=0) / abs_weight_sum
+            profile_tfidf_row = (
+                np.sum(rated_tfidf_rows * weights[:, None], axis=0) / abs_weight_sum
+            )
 
         scored: list[ScoredItem] = []
         for i, item in enumerate(catalog):
@@ -237,12 +251,17 @@ class TFIDFRecommendationEngine(RecommendationEngine):
 
             similarity_score = float(similarities[i])
             community_score = float(item.community_score)
-            final_score = SIMILARITY_WEIGHT * similarity_score + COMMUNITY_SCORE_WEIGHT * community_score
+            final_score = (
+                SIMILARITY_WEIGHT * similarity_score
+                + COMMUNITY_SCORE_WEIGHT * community_score
+            )
 
             shared: list[tuple[str, float]] | None = None
             if shared_terms:
                 item_tfidf_row = tfidf_matrix[i].toarray().ravel()
-                shared = self._top_shared_terms(feature_names, profile_tfidf_row, item_tfidf_row, shared_terms)
+                shared = self._top_shared_terms(
+                    feature_names, profile_tfidf_row, item_tfidf_row, shared_terms
+                )
 
             scored.append(
                 ScoredItem(
@@ -257,7 +276,9 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         return scored
 
     @staticmethod
-    def _build_explicit_preferences_text(explicit_preferences: list[tuple[str, float]]) -> str:
+    def _build_explicit_preferences_text(
+        explicit_preferences: list[tuple[str, float]],
+    ) -> str:
         """Construye el documento sintético que representa las preferencias
         declaradas: cada tag se repite round(max(1, peso * 3)) veces, para que su
         peso relativo en el TF-IDF sea proporcional al peso declarado sin necesitar
@@ -281,5 +302,9 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         shared_indices = np.nonzero(contributions > 0)[0]
         if shared_indices.size == 0:
             return []
-        top_indices = shared_indices[np.argsort(contributions[shared_indices])[::-1][:top_n]]
-        return [(str(feature_names[idx]), float(contributions[idx])) for idx in top_indices]
+        top_indices = shared_indices[
+            np.argsort(contributions[shared_indices])[::-1][:top_n]
+        ]
+        return [
+            (str(feature_names[idx]), float(contributions[idx])) for idx in top_indices
+        ]

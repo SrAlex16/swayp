@@ -18,7 +18,11 @@ def test_create_y_get_by_id(user_and_item):
     user, item_id = user_and_item
 
     created = rating_repository.create(
-        user_id=user.id, item_id=item_id, domain_code="games", status="interested", source="onboarding"
+        user_id=user.id,
+        item_id=item_id,
+        domain_code="games",
+        status="interested",
+        source="onboarding",
     )
 
     fetched = rating_repository.get_by_id(created.id)
@@ -41,9 +45,15 @@ def test_get_by_status(insert_item):
     item_2 = insert_item("games", "g2", "Game Two")
     item_3 = insert_item("games", "g3", "Game Three")
 
-    rating_repository.create(user.id, item_1, "games", status="interested", source="onboarding")
-    rating_repository.create(user.id, item_2, "games", status="interested", source="onboarding")
-    rating_repository.create(user.id, item_3, "games", status="rejected", source="onboarding")
+    rating_repository.create(
+        user.id, item_1, "games", status="interested", source="onboarding"
+    )
+    rating_repository.create(
+        user.id, item_2, "games", status="interested", source="onboarding"
+    )
+    rating_repository.create(
+        user.id, item_3, "games", status="rejected", source="onboarding"
+    )
 
     interested = rating_repository.get_by_status(user.id, "games", "interested")
     rejected = rating_repository.get_by_status(user.id, "games", "rejected")
@@ -55,7 +65,11 @@ def test_get_by_status(insert_item):
 def test_update_status_actualiza_updated_at(user_and_item):
     user, item_id = user_and_item
     created = rating_repository.create(
-        user_id=user.id, item_id=item_id, domain_code="games", status="interested", source="onboarding"
+        user_id=user.id,
+        item_id=item_id,
+        domain_code="games",
+        status="interested",
+        source="onboarding",
     )
 
     # CURRENT_TIMESTAMP de SQLite tiene resolución de 1 segundo: hay que esperar
@@ -77,7 +91,11 @@ def test_update_status_id_inexistente_devuelve_none(items_table):
 def test_get_by_user_and_item_existente(user_and_item):
     user, item_id = user_and_item
     created = rating_repository.create(
-        user_id=user.id, item_id=item_id, domain_code="games", status="interested", source="onboarding"
+        user_id=user.id,
+        item_id=item_id,
+        domain_code="games",
+        status="interested",
+        source="onboarding",
     )
 
     fetched = rating_repository.get_by_user_and_item(user.id, item_id)
@@ -99,7 +117,11 @@ def test_unique_user_item_falla_en_segundo_create(user_and_item):
     ON CONFLICT DO UPDATE): un segundo create() para el mismo user_id+item_id debe
     propagar sqlite3.IntegrityError sin capturarlo."""
     user, item_id = user_and_item
-    rating_repository.create(user.id, item_id, "games", status="interested", source="onboarding")
+    rating_repository.create(
+        user.id, item_id, "games", status="interested", source="onboarding"
+    )
 
     with pytest.raises(sqlite3.IntegrityError):
-        rating_repository.create(user.id, item_id, "games", status="rejected", source="onboarding")
+        rating_repository.create(
+            user.id, item_id, "games", status="rejected", source="onboarding"
+        )

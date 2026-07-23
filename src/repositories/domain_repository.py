@@ -2,6 +2,7 @@
 """Solo conoce la tabla `domains`: qué dominios existen como concepto de producto. No
 importa nada de src/adapters/ — no sabe qué clase de Python implementa cada dominio
 (eso vive en src/adapters/registry.py, una capa de código, no de datos)."""
+
 import logging
 import sqlite3
 
@@ -12,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def _row_to_domain(row: sqlite3.Row) -> Domain:
-    return Domain(code=row["code"], display_name=row["display_name"], enabled=bool(row["enabled"]))
+    return Domain(
+        code=row["code"], display_name=row["display_name"], enabled=bool(row["enabled"])
+    )
 
 
 def get_enabled() -> list[Domain]:
@@ -22,7 +25,11 @@ def get_enabled() -> list[Domain]:
         domains = [_row_to_domain(row) for row in rows]
         logger.debug(
             "dominios habilitados cargados",
-            extra={"layer": "repository", "event": "domains_loaded", "count": len(domains)},
+            extra={
+                "layer": "repository",
+                "event": "domains_loaded",
+                "count": len(domains),
+            },
         )
         return domains
     finally:

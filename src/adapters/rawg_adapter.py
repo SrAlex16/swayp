@@ -65,7 +65,9 @@ class RawgAdapter(BaseAdapter):
     PAGE_SIZE = 40
     DEFAULT_REQUEST_DELAY_SECONDS = 0.25
 
-    def __init__(self, api_key: str | None = None, request_delay_seconds: float | None = None):
+    def __init__(
+        self, api_key: str | None = None, request_delay_seconds: float | None = None
+    ):
         self.api_key = api_key or config.rawg_api_key
         if not self.api_key:
             raise ValueError("RAWG_API_KEY no está definida (revisa tu .env)")
@@ -78,7 +80,11 @@ class RawgAdapter(BaseAdapter):
     def fetch_popular(self, count: int) -> list[Item]:
         logger.info(
             "descargando catálogo popular de RAWG",
-            extra={"layer": "adapter", "event": "fetch_popular_started", "count": count},
+            extra={
+                "layer": "adapter",
+                "event": "fetch_popular_started",
+                "count": count,
+            },
         )
 
         items: list[Item] = []
@@ -127,7 +133,8 @@ class RawgAdapter(BaseAdapter):
 
     def _get(self, path: str, params: dict | None = None) -> dict | None:
         logger.debug(
-            "petición a RAWG", extra={"layer": "adapter", "event": "external_request", "path": path}
+            "petición a RAWG",
+            extra={"layer": "adapter", "event": "external_request", "path": path},
         )
         time.sleep(self.request_delay_seconds)
         url = f"{self.BASE_URL}{path}"
@@ -141,7 +148,11 @@ class RawgAdapter(BaseAdapter):
                 "RAWG: fallo al pedir %s: %s",
                 path,
                 exc,
-                extra={"layer": "adapter", "event": "external_request_failed", "path": path},
+                extra={
+                    "layer": "adapter",
+                    "event": "external_request_failed",
+                    "path": path,
+                },
             )
             return None
 
@@ -190,5 +201,9 @@ class RawgAdapter(BaseAdapter):
     ) -> str:
         truncated_description = description[:DESCRIPTION_MAX_CHARS]
         genre_tags_block = " ".join(genres + tags)
-        parts = [title] + [genre_tags_block] * RawgAdapter.GENRE_TAGS_REPEAT + [truncated_description]
+        parts = (
+            [title]
+            + [genre_tags_block] * RawgAdapter.GENRE_TAGS_REPEAT
+            + [truncated_description]
+        )
         return " ".join(part for part in parts if part)

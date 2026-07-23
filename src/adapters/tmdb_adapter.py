@@ -42,9 +42,13 @@ class TmdbAdapter(BaseAdapter):
         api_read_access_token: str | None = None,
         request_delay_seconds: float | None = None,
     ):
-        self.api_read_access_token = api_read_access_token or config.tmdb_api_read_access_token
+        self.api_read_access_token = (
+            api_read_access_token or config.tmdb_api_read_access_token
+        )
         if not self.api_read_access_token:
-            raise ValueError("TMDB_API_READ_ACCESS_TOKEN no está definida (revisa tu .env)")
+            raise ValueError(
+                "TMDB_API_READ_ACCESS_TOKEN no está definida (revisa tu .env)"
+            )
         self.request_delay_seconds = (
             request_delay_seconds
             if request_delay_seconds is not None
@@ -54,7 +58,11 @@ class TmdbAdapter(BaseAdapter):
     def fetch_popular(self, count: int) -> list[Item]:
         logger.info(
             "descargando catálogo popular de TMDB",
-            extra={"layer": "adapter", "event": "fetch_popular_started", "count": count},
+            extra={
+                "layer": "adapter",
+                "event": "fetch_popular_started",
+                "count": count,
+            },
         )
 
         items: list[Item] = []
@@ -75,7 +83,11 @@ class TmdbAdapter(BaseAdapter):
                 if movie.get("adult"):
                     logger.debug(
                         "película adult=true excluida del catálogo",
-                        extra={"layer": "adapter", "event": "adult_item_skipped", "external_id": movie.get("id")},
+                        extra={
+                            "layer": "adapter",
+                            "event": "adult_item_skipped",
+                            "external_id": movie.get("id"),
+                        },
                     )
                     continue
                 item = self.fetch_by_id(str(movie["id"]))
@@ -99,7 +111,9 @@ class TmdbAdapter(BaseAdapter):
         return items
 
     def fetch_by_id(self, external_id: str) -> Item | None:
-        data = self._get(f"/movie/{external_id}", params={"append_to_response": "keywords"})
+        data = self._get(
+            f"/movie/{external_id}", params={"append_to_response": "keywords"}
+        )
         if data is None:
             return None
         if data.get("adult"):
@@ -109,7 +123,8 @@ class TmdbAdapter(BaseAdapter):
 
     def _get(self, path: str, params: dict | None = None) -> dict | None:
         logger.debug(
-            "petición a TMDB", extra={"layer": "adapter", "event": "external_request", "path": path}
+            "petición a TMDB",
+            extra={"layer": "adapter", "event": "external_request", "path": path},
         )
         time.sleep(self.request_delay_seconds)
         url = f"{self.BASE_URL}{path}"
@@ -126,13 +141,19 @@ class TmdbAdapter(BaseAdapter):
                 "TMDB: fallo al pedir %s: %s",
                 path,
                 exc,
-                extra={"layer": "adapter", "event": "external_request_failed", "path": path},
+                extra={
+                    "layer": "adapter",
+                    "event": "external_request_failed",
+                    "path": path,
+                },
             )
             return None
 
     def _to_item(self, data: dict) -> Item:
         genres = [g["name"] for g in data.get("genres") or []]
-        keywords = [k["name"] for k in (data.get("keywords") or {}).get("keywords") or []]
+        keywords = [
+            k["name"] for k in (data.get("keywords") or {}).get("keywords") or []
+        ]
         collection = data.get("belongs_to_collection")
         collection_name = collection.get("name") if collection else None
         description = (data.get("overview") or "").strip()
@@ -142,7 +163,9 @@ class TmdbAdapter(BaseAdapter):
         community_score = max(0.0, min(1.0, vote_average / 10.0))
 
         poster_path = data.get("poster_path")
-        image_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+        image_url = (
+            f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+        )
 
         return Item(
             external_id=str(data.get("id")),

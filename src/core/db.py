@@ -2,6 +2,7 @@
 """Conexión a SQLite (sqlite3 estándar, sin ORM) — ver docs/ARCHITECTURE.md, sección
 3.3. `items` ya existe desde la Fase 0 (creada por scripts/populate_catalog.py) y no se
 toca aquí en absoluto: este módulo solo añade las tablas nuevas de la Fase 1."""
+
 import sqlite3
 from pathlib import Path
 

@@ -3,6 +3,7 @@
 suficiente para el alcance de este proyecto, no hace falta Celery/Redis. Resuelve el
 timeout de 5 min del proyecto original (`get_recommendations_for_user.py` corriendo
 síncrono dentro de la request)."""
+
 import json
 import logging
 import threading
@@ -19,7 +20,9 @@ logger = logging.getLogger(__name__)
 JOB_TYPE_GENERATE_RECOMMENDATIONS = "generate_recommendations"
 
 
-def create_and_run_recommendation_job(user_id: int, domain_code: str, request_id: str) -> str:
+def create_and_run_recommendation_job(
+    user_id: int, domain_code: str, request_id: str
+) -> str:
     job_id = str(uuid.uuid4())
     job_repository.create(
         job_id=job_id,
@@ -39,7 +42,9 @@ def create_and_run_recommendation_job(user_id: int, domain_code: str, request_id
     return job_id
 
 
-def _run_recommendation_job(job_id: str, user_id: int, domain_code: str, request_id: str) -> None:
+def _run_recommendation_job(
+    job_id: str, user_id: int, domain_code: str, request_id: str
+) -> None:
     # Un hilo nuevo no hereda el contextvar de request_id del hilo que lo lanzó (cada
     # hilo arranca con su propio contexto) — se fija explícitamente para que los logs
     # de este job queden trazables al mismo request_id que la request HTTP original.

@@ -10,6 +10,7 @@ Uso:
     python scripts/seed_test_rating.py --device-id test1 --domain games \
         --likes "Elden Ring" "Dark Souls III" "Hollow Knight"
 """
+
 import argparse
 import sqlite3
 import sys
@@ -33,16 +34,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Siembra ratings 'interested' de prueba (script temporal, sin HTTP)"
     )
-    parser.add_argument("--device-id", required=True, help="device_id del usuario de prueba")
-    parser.add_argument("--domain", required=True, help="Código de dominio, ej. 'games'")
-    parser.add_argument("--likes", nargs="+", required=True, help="Títulos a marcar como 'interested'")
+    parser.add_argument(
+        "--device-id", required=True, help="device_id del usuario de prueba"
+    )
+    parser.add_argument(
+        "--domain", required=True, help="Código de dominio, ej. 'games'"
+    )
+    parser.add_argument(
+        "--likes", nargs="+", required=True, help="Títulos a marcar como 'interested'"
+    )
     args = parser.parse_args()
 
     init_db()
 
     catalog = item_repository.get_all(args.domain)
     if not catalog:
-        print(f"No hay ítems para el dominio '{args.domain}'. Ejecuta antes scripts/populate_catalog.py")
+        print(
+            f"No hay ítems para el dominio '{args.domain}'. Ejecuta antes scripts/populate_catalog.py"
+        )
         sys.exit(1)
 
     user = user_repository.get_or_create_by_device_id(args.device_id)

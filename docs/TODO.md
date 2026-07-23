@@ -67,3 +67,10 @@
 - [x] `GET /domains` — lista de dominios habilitados
 - [x] Validación de `domain_code` centralizada (`src/api/routes/_shared.py`) y aplicada en las 4 rutas que reciben `<domain_code>` en la URL (jobs, ratings, seed, preferences) — un dominio inexistente ahora da 404 en vez de seguir silenciosamente con un catálogo vacío
 - [x] Validado con curl: `GET /domains` devuelve games+movies, `seed` de un dominio real sigue igual, `seed` de un dominio inventado da 404, `populate_catalog.py` sin `--domain` sigue funcionando igual tras el refactor
+
+## CI/CD
+
+- [x] `ruff` añadido a `requirements.txt`; `ruff.toml` con solo exclusiones de código no activo (`legacy_reference/`, `venv/`, `.venv/`, `data/`, `logs/`, `notebooks/`)
+- [x] Decisión tomada: conjunto de reglas por defecto de ruff (E4/E7/E9 + F), sin reglas de estilo adicionales por ahora — ver docs/decisions/0005-conjunto-de-reglas-de-ruff.md
+- [x] Código formateado con `ruff format .` (29 archivos reformateados); confirmado con `pytest -v` que el formateo no cambió comportamiento (44/44 tests siguen pasando)
+- [x] `.github/workflows/backend-ci.yml` — lint (`ruff check`) + formato (`ruff format --check`) + tests (`pytest -v`) en cada push/PR a `main`

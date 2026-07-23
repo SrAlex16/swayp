@@ -2,6 +2,7 @@
 """Contract tests de TmdbAdapter (ver docs/decisions/0003-normalizacion-de-tags-
 heterogeneos.md): verifican que las decisiones de normalización de TMDB concretas
 siguen aplicándose, contra una fixture de respuesta cruda realista."""
+
 import pytest
 
 from src.adapters.tmdb_adapter import TmdbAdapter
@@ -9,7 +10,9 @@ from src.adapters.tmdb_adapter import TmdbAdapter
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
 
-def make_tmdb_movie_detail(movie_id: int, title: str, *, with_collection: bool = True) -> dict:
+def make_tmdb_movie_detail(
+    movie_id: int, title: str, *, with_collection: bool = True
+) -> dict:
     """Respuesta cruda realista de GET /movie/{id}?append_to_response=keywords."""
     detail = {
         "id": movie_id,

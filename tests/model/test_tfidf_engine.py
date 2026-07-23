@@ -3,6 +3,7 @@
 codifica una validación manual real hecha durante el desarrollo — los valores
 concretos (scores, órdenes) se obtuvieron ejecutando el motor contra sample_items
 antes de escribir las aserciones, no se asumieron."""
+
 import logging
 
 import pytest
@@ -37,7 +38,9 @@ def test_ignora_items_sin_senal_declarada(engine, sample_items, items_by_id):
     min_dark_fantasy_score = min(score for item, score in recommendations)
     puzzle_scores = [
         score
-        for item, score in engine.recommend(rated_items, sample_items, top_n=len(sample_items))
+        for item, score in engine.recommend(
+            rated_items, sample_items, top_n=len(sample_items)
+        )
         if item.external_id in PUZZLE_INDIE_IDS
     ]
     assert all(min_dark_fantasy_score > puzzle_score for puzzle_score in puzzle_scores)
@@ -75,15 +78,29 @@ def test_fallback_peso_cero(engine, sample_items, items_by_id, caplog):
     rated_items = [(items_by_id["df-1"], 0.0)]
 
     with caplog.at_level(logging.WARNING, logger="src.model.tfidf_engine"):
-        recommendations = engine.recommend(rated_items, sample_items, top_n=len(sample_items))
+        recommendations = engine.recommend(
+            rated_items, sample_items, top_n=len(sample_items)
+        )
 
-    expected_order = ["df-4", "df-3", "wc-2", "df-2", "wc-1", "pz-3", "pz-1", "pz-4", "pz-2"]
+    expected_order = [
+        "df-4",
+        "df-3",
+        "wc-2",
+        "df-2",
+        "wc-1",
+        "pz-3",
+        "pz-1",
+        "pz-4",
+        "pz-2",
+    ]
     assert [item.external_id for item, _ in recommendations] == expected_order
 
     for item, score in recommendations:
         assert score == pytest.approx(item.community_score)
 
-    warning_records = [record for record in caplog.records if record.levelno == logging.WARNING]
+    warning_records = [
+        record for record in caplog.records if record.levelno == logging.WARNING
+    ]
     assert len(warning_records) == 1
     assert warning_records[0].event == "zero_weight_profile_fallback"
     assert warning_records[0].rated_count == 1
@@ -99,25 +116,33 @@ def test_excluye_todos_los_items_valorados(engine, sample_items, items_by_id):
     ]
     rated_ids = {item.external_id for item, _ in rated_items}
 
-    recommendations = engine.recommend(rated_items, sample_items, top_n=len(sample_items))
+    recommendations = engine.recommend(
+        rated_items, sample_items, top_n=len(sample_items)
+    )
 
     result_ids = {item.external_id for item, _ in recommendations}
     assert result_ids.isdisjoint(rated_ids)
     assert len(recommendations) == len(sample_items) - len(rated_items)
 
 
-def test_shrinkage_sin_preferencias_explicitas_no_cambia_nada(engine, sample_items, items_by_id):
+def test_shrinkage_sin_preferencias_explicitas_no_cambia_nada(
+    engine, sample_items, items_by_id
+):
     """Sin pasar explicit_preferences, o pasando explicit_preferences=None
     explícitamente (los dos son el default): el resultado debe ser idéntico."""
     rated_items = [(items_by_id["df-1"], 0.3), (items_by_id["df-2"], 0.3)]
 
     without_kwarg = engine.recommend(rated_items, sample_items, top_n=5)
-    with_explicit_none = engine.recommend(rated_items, sample_items, top_n=5, explicit_preferences=None)
+    with_explicit_none = engine.recommend(
+        rated_items, sample_items, top_n=5, explicit_preferences=None
+    )
 
     assert without_kwarg == with_explicit_none
 
 
-def test_shrinkage_con_cero_senales_fuertes_usa_preferencia_explicita(engine, sample_items, items_by_id):
+def test_shrinkage_con_cero_senales_fuertes_usa_preferencia_explicita(
+    engine, sample_items, items_by_id
+):
     """Replica la prueba manual real del Bloque 2 de perfil: rated_items normales
     (dark-fantasy) + explicit_preferences hacia el tag de la familia puzzle/indie +
     strong_signal_count=0 (w_explicit=1.0: el vector de perfil se apoya al 100% en

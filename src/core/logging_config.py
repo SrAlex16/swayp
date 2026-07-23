@@ -2,6 +2,7 @@
 """Logging estructurado en JSON (ver docs/ARCHITECTURE.md, sección 3.6): un log por
 línea, con request_id propagado vía contextvars en vez de pasarlo explícitamente por
 cada función."""
+
 import contextvars
 import json
 import logging
@@ -56,7 +57,9 @@ class JSONFormatter(logging.Formatter):
         }
 
         payload = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(
+                record.created, tz=timezone.utc
+            ).isoformat(),
             "level": record.levelname,
             "request_id": get_request_id(),
             "layer": getattr(record, "layer", record.name),

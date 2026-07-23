@@ -1,0 +1,18 @@
+# Configuración mínima de ruff (ver docs/ARCHITECTURE.md, sección 6: CI/CD).
+# Solo excluye lo que no es código activo del proyecto — código archivado, entornos
+# virtuales y datos/logs generados.
+#
+# Decisión de alcance de reglas (ver docs/decisions/0005-conjunto-de-reglas-de-ruff.md):
+# nos quedamos con el conjunto de reglas por defecto de ruff (E4/E7/E9 + F) sin añadir
+# reglas de estilo adicionales por ahora. Ya protege contra errores reales (sintaxis,
+# imports/variables sin usar) sin añadir fricción de estilo. `ruff check .` dio 0
+# errores con este conjunto sobre el código actual — ver ADR-0005 para el motivo
+# completo y qué se descartó.
+extend-exclude = [
+    "legacy_reference",
+    "venv",
+    ".venv",
+    "data",
+    "logs",
+    "notebooks",
+]

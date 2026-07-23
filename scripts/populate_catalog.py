@@ -2,6 +2,7 @@
 """Puebla data/swayp.db con el catálogo de un dominio (Fase 0/1, ver docs/TODO.md).
 Por defecto sigue poblando videojuegos vía RawgAdapter, igual que en la Fase 0; usa
 --domain movies para poblar películas vía TmdbAdapter."""
+
 import argparse
 import json
 import logging
@@ -97,14 +98,21 @@ def main() -> None:
         default=DEFAULT_DOMAIN,
         help=f"Dominio a poblar (default: {DEFAULT_DOMAIN})",
     )
-    parser.add_argument("--count", type=int, default=200, help="Número de ítems a descargar")
+    parser.add_argument(
+        "--count", type=int, default=200, help="Número de ítems a descargar"
+    )
     args = parser.parse_args()
 
     load_dotenv()
 
     adapter_cls = ADAPTER_REGISTRY[args.domain]
     adapter = adapter_cls()
-    logger.info("Descargando %d ítems populares de '%s' (%s)...", args.count, args.domain, adapter_cls.__name__)
+    logger.info(
+        "Descargando %d ítems populares de '%s' (%s)...",
+        args.count,
+        args.domain,
+        adapter_cls.__name__,
+    )
     items = adapter.fetch_popular(args.count)
 
     conn = get_connection()
@@ -113,7 +121,13 @@ def main() -> None:
             save_item(conn, item)
     conn.close()
 
-    logger.info("Guardados %d/%d ítems de '%s' en %s", len(items), args.count, args.domain, DB_PATH)
+    logger.info(
+        "Guardados %d/%d ítems de '%s' en %s",
+        len(items),
+        args.count,
+        args.domain,
+        DB_PATH,
+    )
 
 
 if __name__ == "__main__":

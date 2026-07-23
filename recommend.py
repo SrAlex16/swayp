@@ -7,6 +7,7 @@ Uso:
     python recommend.py --domain movies --user test --likes "Moana" "Scary Movie"
     python recommend.py --inspect-text "Elden Ring"
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -22,7 +23,9 @@ DB_PATH = ROOT_DIR / "data" / "swayp.db"
 DEFAULT_DOMAIN = "games"
 
 
-def find_liked_items(catalog: list[Item], likes: list[str]) -> tuple[list[Item], list[str]]:
+def find_liked_items(
+    catalog: list[Item], likes: list[str]
+) -> tuple[list[Item], list[str]]:
     """Búsqueda flexible por substring (case-insensitive), no exacta estricta."""
     found: list[Item] = []
     not_found: list[str] = []
@@ -44,7 +47,9 @@ def load_catalog_from_db(domain: str) -> list[Item]:
     catalog = item_repository.get_all(domain)
 
     if not catalog:
-        print(f"El catálogo de '{domain}' está vacío. Ejecuta antes scripts/populate_catalog.py --domain {domain}")
+        print(
+            f"El catálogo de '{domain}' está vacío. Ejecuta antes scripts/populate_catalog.py --domain {domain}"
+        )
         sys.exit(1)
 
     return catalog
@@ -66,7 +71,9 @@ def inspect_text(domain: str, title_query: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Recomendaciones de validación manual (Fase 0)")
+    parser = argparse.ArgumentParser(
+        description="Recomendaciones de validación manual (Fase 0)"
+    )
     parser.add_argument(
         "--domain",
         default=DEFAULT_DOMAIN,
@@ -74,7 +81,9 @@ def main() -> None:
     )
     parser.add_argument("--user", help="Nombre del usuario de prueba")
     parser.add_argument("--likes", nargs="+", help="Títulos que le gustan al usuario")
-    parser.add_argument("--top", type=int, default=10, help="Número de recomendaciones a mostrar")
+    parser.add_argument(
+        "--top", type=int, default=10, help="Número de recomendaciones a mostrar"
+    )
     parser.add_argument(
         "--debug",
         action="store_true",
@@ -92,7 +101,9 @@ def main() -> None:
         return
 
     if not args.user or not args.likes:
-        parser.error("--user y --likes son obligatorios (salvo que uses --inspect-text)")
+        parser.error(
+            "--user y --likes son obligatorios (salvo que uses --inspect-text)"
+        )
 
     catalog = load_catalog_from_db(args.domain)
     liked_items, not_found = find_liked_items(catalog, args.likes)
@@ -112,13 +123,17 @@ def main() -> None:
     print("Recomendaciones:")
 
     if args.debug:
-        breakdown = engine.recommend_with_breakdown(liked_items, catalog, top_n=args.top)
+        breakdown = engine.recommend_with_breakdown(
+            liked_items, catalog, top_n=args.top
+        )
         for i, entry in enumerate(breakdown, start=1):
             print(f"{i}. {entry.item.title} (score: {entry.final_score:.2f})")
             print(f"   similarity_score: {entry.similarity_score:.3f}")
             print(f"   community_score_normalizado: {entry.community_score:.3f}")
             if entry.shared_terms:
-                terms = ", ".join(f"{term} ({weight:.3f})" for term, weight in entry.shared_terms)
+                terms = ", ".join(
+                    f"{term} ({weight:.3f})" for term, weight in entry.shared_terms
+                )
                 print(f"   términos TF-IDF compartidos: {terms}")
             else:
                 print("   términos TF-IDF compartidos: (ninguno)")

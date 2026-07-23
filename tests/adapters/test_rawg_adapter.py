@@ -3,6 +3,7 @@
 heterogeneos.md): verifican que las decisiones de normalización de RAWG concretas
 siguen aplicándose, contra una fixture de respuesta cruda realista — no mockean el
 motor ni asumen nada del comportamiento, lo ejercitan de verdad."""
+
 import pytest
 
 from src.adapters.rawg_adapter import RawgAdapter
@@ -32,7 +33,11 @@ def make_rawg_game_detail(game_id: int, name: str) -> dict:
             {"id": 42, "name": "Singleplayer", "slug": "singleplayer"},
             {"id": 7, "name": "Steam Achievements", "slug": "steam-achievements"},
             {"id": 31, "name": "Co-op", "slug": "co-op"},
-            {"id": 40836, "name": "Full controller support", "slug": "full-controller-support"},
+            {
+                "id": 40836,
+                "name": "Full controller support",
+                "slug": "full-controller-support",
+            },
         ],
     }
 
@@ -64,7 +69,9 @@ def test_to_item_filtra_tag_denylist_del_texto(adapter, rawg_game_fixture):
 
     text_lower = item.text_for_vectorization.lower()
     for tag in denylisted_tags:
-        assert tag.lower() not in text_lower, f"{tag!r} no debería estar en text_for_vectorization"
+        assert tag.lower() not in text_lower, (
+            f"{tag!r} no debería estar en text_for_vectorization"
+        )
         assert tag in item.tags, f"{tag!r} sí debería seguir en Item.tags"
 
     # La señal de género real sí debe estar presente en el texto.
@@ -73,7 +80,9 @@ def test_to_item_filtra_tag_denylist_del_texto(adapter, rawg_game_fixture):
     assert "rpg" in text_lower
 
 
-def test_to_item_incluye_adapter_version_y_enrichment_version(adapter, rawg_game_fixture):
+def test_to_item_incluye_adapter_version_y_enrichment_version(
+    adapter, rawg_game_fixture
+):
     item = adapter._to_item(rawg_game_fixture)
 
     assert item.adapter_version == "rawg-0.1"
@@ -94,15 +103,26 @@ def test_fetch_popular_usa_requests_mock(adapter, requests_mock):
     }
     requests_mock.get(f"{RAWG_BASE_URL}/games", [{"json": page_1}, {"json": page_2}])
 
-    for game_id, name in [(1, "Shadowreign"), (2, "Crimson Requiem"), (3, "Wraith's Descent"), (4, "Bloodmoon")]:
+    for game_id, name in [
+        (1, "Shadowreign"),
+        (2, "Crimson Requiem"),
+        (3, "Wraith's Descent"),
+        (4, "Bloodmoon"),
+    ]:
         requests_mock.get(
-            f"{RAWG_BASE_URL}/games/{game_id}", json=make_rawg_game_detail(game_id, name)
+            f"{RAWG_BASE_URL}/games/{game_id}",
+            json=make_rawg_game_detail(game_id, name),
         )
 
     items = adapter.fetch_popular(4)
 
     assert len(items) == 4
-    assert [item.title for item in items] == ["Shadowreign", "Crimson Requiem", "Wraith's Descent", "Bloodmoon"]
+    assert [item.title for item in items] == [
+        "Shadowreign",
+        "Crimson Requiem",
+        "Wraith's Descent",
+        "Bloodmoon",
+    ]
     assert all(item.adapter_version == "rawg-0.1" for item in items)
 
     # 2 llamadas al listado (una por página) + 4 llamadas de detalle.
@@ -110,7 +130,9 @@ def test_fetch_popular_usa_requests_mock(adapter, requests_mock):
         req for req in requests_mock.request_history if req.path == "/api/games"
     ]
     detail_calls = [
-        req for req in requests_mock.request_history if req.path.startswith("/api/games/")
+        req
+        for req in requests_mock.request_history
+        if req.path.startswith("/api/games/")
     ]
     assert len(games_list_calls) == 2
     assert len(detail_calls) == 4
@@ -128,8 +150,12 @@ def test_fetch_falla_no_revienta(adapter, requests_mock):
         f"{RAWG_BASE_URL}/games",
         [{"json": page_1}, {"status_code": 500}],
     )
-    requests_mock.get(f"{RAWG_BASE_URL}/games/1", json=make_rawg_game_detail(1, "Shadowreign"))
-    requests_mock.get(f"{RAWG_BASE_URL}/games/2", json=make_rawg_game_detail(2, "Crimson Requiem"))
+    requests_mock.get(
+        f"{RAWG_BASE_URL}/games/1", json=make_rawg_game_detail(1, "Shadowreign")
+    )
+    requests_mock.get(
+        f"{RAWG_BASE_URL}/games/2", json=make_rawg_game_detail(2, "Crimson Requiem")
+    )
 
     items = adapter.fetch_popular(4)
 
