@@ -33,7 +33,9 @@ def test_flujo_completo_seed_rating_job_resultado(client, seeded_catalog):
     assert codes == {"games", "movies"}
 
     # 2. GET seed
-    seed_response = client.get(f"/api/v1/domains/games/seed?device_id={device_id}&count=5")
+    seed_response = client.get(
+        f"/api/v1/domains/games/seed?device_id={device_id}&count=5"
+    )
     assert seed_response.status_code == 200
     seed_items = seed_response.get_json()
     assert len(seed_items) == 5
@@ -83,8 +85,16 @@ def test_flujo_completo_seed_rating_job_resultado(client, seeded_catalog):
             "/api/v1/domains/dominio-inventado/recommendations/jobs",
             {"device_id": "test"},
         ),
-        ("get", "/api/v1/domains/dominio-inventado/pending-confirmation?device_id=test", None),
-        ("get", "/api/v1/users/domains/dominio-inventado/preferences?device_id=test", None),
+        (
+            "get",
+            "/api/v1/domains/dominio-inventado/pending-confirmation?device_id=test",
+            None,
+        ),
+        (
+            "get",
+            "/api/v1/users/domains/dominio-inventado/preferences?device_id=test",
+            None,
+        ),
         (
             "put",
             "/api/v1/users/domains/dominio-inventado/preferences",
@@ -194,19 +204,26 @@ def test_perfil_y_preferencias_flujo(client, items_table):
         "/api/v1/users/domains/games/preferences",
         json={
             "device_id": device_id,
-            "preferences": [{"tag": "RPG", "weight": 1.0}, {"tag": "Terror", "weight": 0.2}],
+            "preferences": [
+                {"tag": "RPG", "weight": 1.0},
+                {"tag": "Terror", "weight": 0.2},
+            ],
         },
     )
     preferences_after_first_put = client.get(
         f"/api/v1/users/domains/games/preferences?device_id={device_id}"
     )
     assert {
-        (entry["tag"], entry["weight"]) for entry in preferences_after_first_put.get_json()
+        (entry["tag"], entry["weight"])
+        for entry in preferences_after_first_put.get_json()
     } == {("RPG", 1.0), ("Terror", 0.2)}
 
     client.put(
         "/api/v1/users/domains/games/preferences",
-        json={"device_id": device_id, "preferences": [{"tag": "Puzzle", "weight": 0.8}]},
+        json={
+            "device_id": device_id,
+            "preferences": [{"tag": "Puzzle", "weight": 0.8}],
+        },
     )
     preferences_after_second_put = client.get(
         f"/api/v1/users/domains/games/preferences?device_id={device_id}"
