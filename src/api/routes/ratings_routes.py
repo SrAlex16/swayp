@@ -4,7 +4,7 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from src.api.routes._shared import require_enabled_domain
-from src.core.errors import NotFoundError, ValidationError
+from src.core.errors import ConflictError, NotFoundError, ValidationError
 from src.model.item import Item
 from src.model.rating import Rating
 from src.repositories import item_repository, rating_repository, user_repository
@@ -80,6 +80,33 @@ def create_rating(domain_code: str):
     status = _validate_status(body)
     item = _resolve_item(domain_code, body)
     user = user_repository.get_or_create_by_device_id(device_id)
+
+    # ratings tiene UNIQUE(user_id, item_id): la cola optimista de swipe (ver
+    # ARCHITECTURE.md sección 7.1) puede reintentar el mismo POST tras un fallo de
+    # red, así que un segundo POST para el mismo usuario+ítem no es necesariamente
+    # un error — depende de si el status coincide con el ya guardado.
+    existing = rating_repository.get_by_user_and_item(user.id, item.id)
+    if existing is not None:
+        if existing.status == status:
+            logger.info(
+                "rating repetido (reintento idempotente)",
+                extra={
+                    "layer": "api",
+                    "event": "rating_create_retry",
+                    "rating_id": existing.id,
+                    "user_id": user.id,
+                    "item_id": item.id,
+                    "domain_code": domain_code,
+                    "status": status,
+                },
+            )
+            return jsonify(_rating_to_dict(existing)), 200
+
+        raise ConflictError(
+            f"Ya existe un rating (id={existing.id}) para este usuario y este item con "
+            f"status='{existing.status}'. Usa PATCH /domains/{domain_code}/ratings/{existing.id} "
+            "para cambiarlo."
+        )
 
     rating = rating_repository.create(
         user_id=user.id,

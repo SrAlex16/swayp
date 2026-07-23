@@ -76,6 +76,28 @@ def get_by_user(user_id: int, domain_code: str) -> list[Rating]:
         conn.close()
 
 
+def get_by_user_and_item(user_id: int, item_id: int) -> Rating | None:
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM ratings WHERE user_id = ? AND item_id = ?", (user_id, item_id)
+        ).fetchone()
+        rating = _row_to_rating(row) if row is not None else None
+        logger.debug(
+            "rating buscado por user_id+item_id",
+            extra={
+                "layer": "repository",
+                "event": "rating_lookup_by_user_and_item",
+                "user_id": user_id,
+                "item_id": item_id,
+                "found": rating is not None,
+            },
+        )
+        return rating
+    finally:
+        conn.close()
+
+
 def get_by_status(user_id: int, domain_code: str, status: str) -> list[Rating]:
     conn = get_connection()
     try:

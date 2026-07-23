@@ -40,3 +40,8 @@ class ValidationError(AppError):
 class JobFailedError(AppError):
     http_status = 500
     error_code = "JOB_FAILED"
+
+
+class ConflictError(AppError):
+    http_status = 409
+    error_code = "CONFLICT"
