@@ -13,8 +13,6 @@ Funcionalidades y mejoras pospuestas conscientemente (no olvidadas). Cuando se a
 - Login real con sync multi-dispositivo (hoy identidad solo por `device_id` local).
 - Mejorar `scripts/populate_catalog.py` para samplear el catálogo de RAWG de forma diversa por género (ej. estratificado, no solo por popularidad/`-added`). Detectado en Fase 0: con los 200 juegos más populares, términos como Action (83%), Singleplayer (90%) u Open World (45%) aparecen en una fracción tan alta del catálogo que dejan de discriminar gustos — es un problema de composición del catálogo de prueba, no del motor de recomendación.
 
-## Limpieza pendiente de rebranding (Anime_recommender → Swayp)
+## Limpieza pendiente de rebranding (Anime_recommender → Swayp) — RESUELTO
 
-- `pubspec.yaml` → cambiar `name:` a `swayp` en el proyecto Flutter
-- `applicationId` / bundle id de Android e iOS si en algún momento se generan builds firmados
-- Revisar README y cualquier referencia suelta a "Anime Recommender" en código o documentación
+`frontend/anime_recommender_app/` renombrado a `frontend/swayp/` (`git mv`, historial conservado). `pubspec.yaml` (`name: swayp`), `applicationId`/namespace de Android y `PRODUCT_BUNDLE_IDENTIFIER` de iOS/macOS actualizados a `com.sralex16.swayp` (antes `com.example.anime_recommender_app`), binario/nombre de app en Linux y Windows también renombrados. Sin referencias sueltas a "anime_recommender"/"Anime Recommender" en código o config de build (`README.md`, `web/manifest.json`, `AndroidManifest.xml`, `Info.plist`). Queda pendiente, fuera de este bloque: `assets/localization.json` conserva strings del dominio de anime (login/blacklist) porque son contenido de la app vieja, no branding — se sustituirá al construir las pantallas reales (ver sección "Frontend Flutter — fundamentos" en docs/TODO.md).

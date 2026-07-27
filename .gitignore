@@ -61,52 +61,6 @@ src/model/*.joblib
 similarity_matrix.npz
 
 # =========================
-# Flutter / Dart
-# =========================
-# Build outputs
-frontend/anime_recommender_app/build/
-frontend/anime_recommender_app/.dart_tool/
-frontend/anime_recommender_app/.flutter-plugins
-frontend/anime_recommender_app/.flutter-plugins-dependencies
-
-# Generated files
-frontend/anime_recommender_app/.packages
-frontend/anime_recommender_app/pubspec.lock
-frontend/anime_recommender_app/ios/Flutter/Generated.xcconfig
-frontend/anime_recommender_app/ios/Flutter/flutter_export_environment.sh
-frontend/anime_recommender_app/macos/Flutter/ephemeral/
-frontend/anime_recommender_app/linux/flutter/ephemeral/
-
-# Android
-frontend/anime_recommender_app/android/local.properties
-frontend/anime_recommender_app/android/app/build/
-frontend/anime_recommender_app/android/.gradle/
-frontend/anime_recommender_app/android/gradle/
-frontend/anime_recommender_app/android/gradlew
-frontend/anime_recommender_app/android/gradlew.bat
-
-# iOS
-frontend/anime_recommender_app/ios/Pods/
-frontend/anime_recommender_app/ios/.symlinks/
-frontend/anime_recommender_app/ios/Flutter/App.framework
-frontend/anime_recommender_app/ios/Flutter/Flutter.framework
-frontend/anime_recommender_app/ios/Flutter/Flutter.podspec
-frontend/anime_recommender_app/ios/Runner.xcworkspace/xcuserdata/
-frontend/anime_recommender_app/ios/Runner.xcodeproj/xcuserdata/
-
-# macOS
-frontend/anime_recommender_app/macos/Pods/
-frontend/anime_recommender_app/macos/.symlinks/
-frontend/anime_recommender_app/macos/Runner.xcworkspace/xcuserdata/
-frontend/anime_recommender_app/macos/Runner.xcodeproj/xcuserdata/
-
-# Windows
-frontend/anime_recommender_app/windows/flutter/ephemeral/
-
-# Linux
-frontend/anime_recommender_app/linux/flutter/ephemeral/
-
-# =========================
 # Sistema
 # =========================
 # Archivos temporales del sistema
