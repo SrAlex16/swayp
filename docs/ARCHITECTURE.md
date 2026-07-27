@@ -467,11 +467,13 @@ jobs:
 
 Es la pantalla principal, y hace doble función: onboarding (primera vez en un dominio, baraja semilla) y recomendación continua (baraja generada por el motor). Mismo widget, mismo flujo de datos, distinto origen de la baraja.
 
+**Cambio de diseño (tras revisar un mockup de referencia, priorizando menos fricción de arranque):** ya no hay una pantalla de selección de dominio previa a esta — la app arranca **directamente** en Descubrir. Hay un dominio activo en memoria (Riverpod), persistido en `shared_preferences` entre aperturas; en la primerísima apertura (sin nada persistido todavía) se usa el primero que devuelva `GET /domains`. Cambiar de dominio se hace desde esta misma pantalla: un icono de menú (arriba a la derecha) abre una hoja inferior (`showModalBottomSheet`, no un panel lateral) con la opción "Cambiar de obras", que a su vez muestra la lista de dominios en otra hoja; seleccionar uno actualiza el dominio activo, lo persiste y cierra el menú — sin recargar la app ni navegar a otra ruta. El icono de filtro (bullet siguiente) es un icono aparte, todavía pendiente de implementar.
+
 **Componentes:**
 - Card stack en primer plano con gestos de swipe. **Contenido en primer plano** (visible sin tocar nada): carrusel de imágenes (`item_images`) a pantalla casi completa, y overlay inferior con título, año y 1-2 badges (género principal, subtipo si aplica) — lo mínimo para decidir en un vistazo. **Contenido expandible** (tap en la carta, no swipe): sinopsis completa, todos los géneros/tags, score de comunidad. El tap queda libre para quien quiere más info antes de decidir, sin interferir con el gesto de swipe.
 - Toggle discreto **"Ya lo conozco"** en la propia tarjeta: si el usuario lo activa antes de decidir, el swipe deja de significar "interés" y pasa a pedir una respuesta directa de gusto (me gustó / no me gustó) en vez de "quiero verlo". Resuelve con fricción mínima el caso de que aparezca algo que el usuario ya ha consumido (sección 7.3 lo trata en detalle).
 - Botones espejo de los gestos (rechazar / aceptar / volver atrás) — no solo por accesibilidad, también porque si en algún momento la app corre en web/desktop (útil para la entrega del curso), el gesto de swipe no siempre está disponible.
-- Icono de filtro → panel de filtros, generado dinámicamente a partir de `GET /domains/{domain}/filters` (sección 8).
+- Icono de filtro → panel de filtros, generado dinámicamente a partir de `GET /domains/{domain}/filters` (sección 8). Pendiente de implementar; coexiste con el icono de menú (párrafo anterior), que es un icono distinto.
 
 **Flujo de datos (importante para que el swipe se sienta instantáneo):**
 1. Al entrar, se pre-carga un lote de N ítems (ej. 10) vía el job de recomendaciones. **Baraja semilla (primera vez en un dominio)**: no debe ser aleatoria pura ni "los más populares" sin más — conviene una muestra estratificada por género/subtipo, para cubrir el espacio de gustos del usuario en pocos swipes y no sesgar el arranque hacia un solo género por casualidad del muestreo.
@@ -487,6 +489,8 @@ Esto también hace la app tolerante a conexión intermitente, algo nada trivial 
 
 - Edad, sexo (opcional), y gustos declarados explícitamente por dominio (chips de género u otras facetas marcadas como "preferencia", no solo filtro).
 - Importante: aquí el usuario declara *lo que dice que le gusta*; el swipe genera *lo que demuestra con su comportamiento*. Son señales distintas y se combinan con pesos distintos (sección 9).
+
+**Estado de implementación:** de momento es una de las 3 pestañas de la barra de navegación inferior (sección 7, arriba), con un placeholder simple ("Próximamente") — el contenido real descrito en esta sección se construye en un bloque futuro.
 
 ### 7.3 Pantalla de Guardados
 

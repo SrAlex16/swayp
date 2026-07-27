@@ -1,26 +1,16 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import 'app_shell.dart';
 
 /// Configuración de rutas de la app (docs/ARCHITECTURE.md sección 4.2).
 ///
-/// Por ahora solo existe la ruta raíz con una pantalla placeholder — las
-/// rutas reales (selección de dominio, swipe, guardados, perfil...) se
-/// añaden en los siguientes bloques, siguiendo la sección 7.
+/// '/' carga el shell de navegación principal (barra inferior de 3
+/// pestañas, sección 7) directamente en Descubrir — no hay pantalla de
+/// selección de dominio como ruta propia; el selector vive dentro de una
+/// hoja inferior abierta desde el menú de Descubrir (sección 7.1).
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const _PlaceholderScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const AppShell()),
   ],
 );
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Swayp')));
-  }
-}
