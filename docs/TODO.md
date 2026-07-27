@@ -106,4 +106,4 @@
 - [x] Modo oscuro. El usuario puede elegir manualmente o de forma automáticacogiendo el modo por defecto del dispositivo
 - [x] Cambiar idioma. El usuario puede elegir entre español o inglés o que se ponga solo en función del idioma del dispositivo
 - [x] Filtros para mostrar obras. Género, edad recomendada, duración estimada...
-
+- [x] pantalla de guardado no se actualiza automáticamente. Cuando doy like, no aparece nada, para que aparezcan las obras hay que refrescar la pantalla cerrando la app y volviendola a abrir
