@@ -98,3 +98,12 @@
 - [x] `flutter build apk --debug` compila (`✓ Built build/app/outputs/flutter-apk/app-debug.apk`); `flutter analyze` y `flutter test` repetidos tras la regeneración, ambos siguen en verde
 
 **Fundamentos del frontend completados** (rebranding + dependencias + arranque mínimo confirmado, con build de Android real funcionando). Próximo bloque: arquitectura de carpetas (`core/`, `domain/`, `data/`, `features/`) siguiendo docs/ARCHITECTURE.md sección 4.2.
+
+## Nuevas ideas
+- [x] Botón de rollback en la pantalla principal. En caso de que el usuario se equivoque, que pueda modificar la última opción
+- [x] Blocklist. En Tinder hay un sistema para coger a los contactos directamente desde la agenda del teléfono y bloquearlos para que no aparezcan en la pantalla principal. En Swayp hay que hacer algo parecido, es decir, que el usuario pueda añadir obras que conoce y ha consumido (independientemente de si les gusta o no (aunque realmente estaría bien saber si esas obras les ha gustado para entrenar al modelo)) para que estas no aparezcan en la pantalla principal
+- [x] Entrenar el modelo en función del gusto del usuario. Con forme va dando likes / dislikes, vectorizar ese registro para ir recomendando obras cada vez más similares o que puedan gustale. Es decir, cuando tengamos el algoritmo entrenado, podríamos saltarnos esta regla aleatóriamente cada X recomendaciones, de forma que salga una recomendación diferente a las vectorizadas para tener obras variadas dentro del algoritmo y no recomendar siempre lo mismo
+- [x] Modo oscuro. El usuario puede elegir manualmente o de forma automáticacogiendo el modo por defecto del dispositivo
+- [x] Cambiar idioma. El usuario puede elegir entre español o inglés o que se ponga solo en función del idioma del dispositivo
+- [x] Filtros para mostrar obras. Género, edad recomendada, duración estimada...
+
