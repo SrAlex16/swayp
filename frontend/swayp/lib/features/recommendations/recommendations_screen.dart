@@ -2,19 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
+import '../../domain/models/item.dart';
 import '../domain_selection/current_domain_provider.dart';
 import '../domain_selection/domain_picker_sheet.dart';
+import 'deck_provider.dart';
 
 /// Pantalla de Descubrir (docs/ARCHITECTURE.md sección 7.1) — pantalla de
-/// arranque de la app. Contenido mínimo por ahora: confirma que el dominio
-/// activo carga y se puede cambiar de principio a fin. El swipe real se
-/// construye en el siguiente bloque.
+/// arranque de la app. Muestra la primera carta (top de la pila) del mazo
+/// del dominio activo, sin gesto de swipe todavía (siguiente bloque); los
+/// botones ✕/✓ están presentes pero no hacen nada aún.
 class RecommendationsScreen extends ConsumerWidget {
   const RecommendationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentDomainAsync = ref.watch(currentDomainProvider);
+    final deckAsync = ref.watch(deckProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -27,22 +30,23 @@ class RecommendationsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: currentDomainAsync.when(
+      body: deckAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text(_errorMessage(error))),
-        data: (domain) => Center(
-          child: Text(
-            domain == null
-                ? 'No hay dominios disponibles.'
-                : 'Swipe de ${domain.displayName} (próximamente)',
-          ),
-        ),
+        error: (error, stackTrace) =>
+            _DeckError(error: error, onRetry: () => ref.invalidate(deckProvider)),
+        data: (items) {
+          if (items.isEmpty) {
+            return const Center(child: Text('No hay más obras por ahora en este dominio'));
+          }
+          return Column(
+            children: [
+              Expanded(child: _TopCard(item: items.first)),
+              const _ActionButtonsRow(),
+            ],
+          );
+        },
       ),
     );
-  }
-
-  String _errorMessage(Object error) {
-    return error is AppException ? error.message : 'No se pudo cargar el dominio activo.';
   }
 
   Future<void> _openMainMenu(BuildContext context) async {
@@ -83,6 +87,151 @@ class _MainMenuSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DeckError extends StatelessWidget {
+  const _DeckError({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = error is AppException
+        ? (error as AppException).message
+        : 'No se pudo cargar el mazo.';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Carta superior de la pila: imagen a pantalla casi completa con overlay
+/// inferior mostrando el título (docs/ARCHITECTURE.md sección 7.1).
+class _TopCard extends StatelessWidget {
+  const _TopCard({required this.item});
+
+  final Item item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _CardImage(imageUrl: item.imageUrl),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.75)],
+                  ),
+                ),
+                child: Text(
+                  item.title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CardImage extends StatelessWidget {
+  const _CardImage({required this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl;
+    if (url == null) {
+      return const ColoredBox(
+        color: Colors.black12,
+        child: Center(child: Icon(Icons.image_not_supported_outlined, size: 48)),
+      );
+    }
+
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => const ColoredBox(
+        color: Colors.black12,
+        child: Center(child: Icon(Icons.broken_image_outlined, size: 48)),
+      ),
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+  }
+}
+
+/// Botones espejo del gesto de swipe (docs/ARCHITECTURE.md sección 7.1) —
+/// presentes visualmente, sin funcionalidad todavía (siguiente bloque).
+class _ActionButtonsRow extends StatelessWidget {
+  const _ActionButtonsRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _ActionButton(icon: Icons.close, color: Colors.red, onPressed: () {}),
+          const SizedBox(width: 32),
+          _ActionButton(icon: Icons.favorite, color: Colors.green, onPressed: () {}),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({required this.icon, required this.color, required this.onPressed});
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton(
+      heroTag: null,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      foregroundColor: color,
+      onPressed: onPressed,
+      child: Icon(icon),
     );
   }
 }
