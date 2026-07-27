@@ -8,9 +8,8 @@ import '../domain_selection/domain_picker_sheet.dart';
 import 'deck_provider.dart';
 
 /// Pantalla de Descubrir (docs/ARCHITECTURE.md sección 7.1) — pantalla de
-/// arranque de la app. Muestra la primera carta (top de la pila) del mazo
-/// del dominio activo, sin gesto de swipe todavía (siguiente bloque); los
-/// botones ✕/✓ están presentes pero no hacen nada aún.
+/// arranque de la app. Muestra la carta superior del mazo del dominio
+/// activo, con swipe real (gesto de arrastre + botones ✕/✓).
 class RecommendationsScreen extends ConsumerWidget {
   const RecommendationsScreen({super.key});
 
@@ -18,6 +17,12 @@ class RecommendationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentDomainAsync = ref.watch(currentDomainProvider);
     final deckAsync = ref.watch(deckProvider);
+
+    ref.listen<AppException?>(swipeErrorProvider, (previous, next) {
+      if (next == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(next.message)));
+      ref.read(swipeErrorProvider.notifier).dismiss();
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -38,10 +43,22 @@ class RecommendationsScreen extends ConsumerWidget {
           if (items.isEmpty) {
             return const Center(child: Text('No hay más obras por ahora en este dominio'));
           }
+          final topItem = items.first;
+          void swipe(String status) => ref.read(deckProvider.notifier).swipe(topItem, status);
+
           return Column(
             children: [
-              Expanded(child: _TopCard(item: items.first)),
-              const _ActionButtonsRow(),
+              Expanded(
+                child: _SwipeableCard(
+                  key: ValueKey(topItem.itemId),
+                  item: topItem,
+                  onSwiped: swipe,
+                ),
+              ),
+              _ActionButtonsRow(
+                onReject: () => swipe('rejected'),
+                onAccept: () => swipe('interested'),
+              ),
             ],
           );
         },
@@ -121,8 +138,59 @@ class _DeckError extends StatelessWidget {
   }
 }
 
-/// Carta superior de la pila: imagen a pantalla casi completa con overlay
-/// inferior mostrando el título (docs/ARCHITECTURE.md sección 7.1).
+/// Carta superior de la pila con gesto de arrastre horizontal
+/// (docs/ARCHITECTURE.md sección 7.1): rotación/fade sutiles mientras se
+/// arrastra; al superar el umbral de distancia dispara `onSwiped` con
+/// "interested" (derecha) o "rejected" (izquierda) y suelta el arrastre. Si
+/// no llega al umbral, la carta vuelve al centro.
+class _SwipeableCard extends StatefulWidget {
+  const _SwipeableCard({required super.key, required this.item, required this.onSwiped});
+
+  final Item item;
+  final ValueChanged<String> onSwiped;
+
+  @override
+  State<_SwipeableCard> createState() => _SwipeableCardState();
+}
+
+class _SwipeableCardState extends State<_SwipeableCard> {
+  static const double _swipeThreshold = 120;
+
+  Offset _dragOffset = Offset.zero;
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    setState(() => _dragOffset += details.delta);
+  }
+
+  void _handlePanEnd(DragEndDetails details) {
+    if (_dragOffset.dx.abs() > _swipeThreshold) {
+      widget.onSwiped(_dragOffset.dx > 0 ? 'interested' : 'rejected');
+      return;
+    }
+    setState(() => _dragOffset = Offset.zero);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final angle = _dragOffset.dx / 800;
+    final opacity = (1 - (_dragOffset.dx.abs() / 400)).clamp(0.4, 1.0);
+
+    return GestureDetector(
+      onPanUpdate: _handlePanUpdate,
+      onPanEnd: _handlePanEnd,
+      child: Transform.translate(
+        offset: _dragOffset,
+        child: Transform.rotate(
+          angle: angle,
+          child: Opacity(opacity: opacity, child: _TopCard(item: widget.item)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Contenido visual de la carta: imagen a pantalla casi completa con
+/// overlay inferior mostrando el título (docs/ARCHITECTURE.md sección 7.1).
 class _TopCard extends StatelessWidget {
   const _TopCard({required this.item});
 
@@ -196,10 +264,12 @@ class _CardImage extends StatelessWidget {
   }
 }
 
-/// Botones espejo del gesto de swipe (docs/ARCHITECTURE.md sección 7.1) —
-/// presentes visualmente, sin funcionalidad todavía (siguiente bloque).
+/// Botones espejo del gesto de swipe (docs/ARCHITECTURE.md sección 7.1).
 class _ActionButtonsRow extends StatelessWidget {
-  const _ActionButtonsRow();
+  const _ActionButtonsRow({required this.onReject, required this.onAccept});
+
+  final VoidCallback onReject;
+  final VoidCallback onAccept;
 
   @override
   Widget build(BuildContext context) {
@@ -208,9 +278,9 @@ class _ActionButtonsRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _ActionButton(icon: Icons.close, color: Colors.red, onPressed: () {}),
+          _ActionButton(icon: Icons.close, color: Colors.red, onPressed: onReject),
           const SizedBox(width: 32),
-          _ActionButton(icon: Icons.favorite, color: Colors.green, onPressed: () {}),
+          _ActionButton(icon: Icons.favorite, color: Colors.green, onPressed: onAccept),
         ],
       ),
     );

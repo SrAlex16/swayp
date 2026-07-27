@@ -5,9 +5,9 @@ import '../../features/recommendations/recommendations_screen.dart';
 import '../../features/saved/saved_screen.dart';
 
 /// Shell de navegación principal (docs/ARCHITECTURE.md sección 7): barra de
-/// navegación inferior con 3 pestañas. Descubrir es la única con contenido
-/// real por ahora; Guardados y Perfil son placeholders hasta bloques
-/// futuros. `IndexedStack` mantiene el estado de cada pestaña al cambiar
+/// navegación inferior con 3 pestañas. Descubrir y Guardados tienen
+/// contenido real; Perfil sigue siendo un placeholder hasta un bloque
+/// futuro. `IndexedStack` mantiene el estado de cada pestaña al cambiar
 /// entre ellas.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
