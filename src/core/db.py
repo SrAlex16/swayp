@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS domains (
     display_name TEXT NOT NULL,
     enabled BOOLEAN DEFAULT 1
 );
+
+-- Blacklist dura (ver docs/ARCHITECTURE.md sección 3.3): exclusión permanente y
+-- explícita de un ítem, distinta de ratings.status='rejected' — no es señal de
+-- entrenamiento, es "no me lo vuelvas a enseñar nunca".
+CREATE TABLE IF NOT EXISTS blacklist (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    item_id INTEGER NOT NULL REFERENCES items(id),
+    domain_code TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, item_id)
+);
 """
 
 # Pesos por defecto del modelo de señales (ver docs/ARCHITECTURE.md, sección 9). Solo
@@ -97,9 +108,9 @@ def get_connection(database_path: str | None = None) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection | None = None) -> None:
     """Crea (si no existen) users/ratings/jobs/signal_weights/user_profile/
-    user_explicit_preferences/domains. Idempotente; no toca `items`. Siembra los
-    valores por defecto de signal_weights y domains solo si esas tablas están
-    vacías."""
+    user_explicit_preferences/domains/blacklist. Idempotente; no toca `items`.
+    Siembra los valores por defecto de signal_weights y domains solo si esas tablas
+    están vacías."""
     owns_connection = conn is None
     conn = conn or get_connection()
     try:

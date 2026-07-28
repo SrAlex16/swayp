@@ -5,6 +5,7 @@ from collections import Counter
 from src.core.errors import ValidationError
 from src.model.tfidf_engine import TFIDFRecommendationEngine
 from src.repositories import (
+    blacklist_repository,
     item_repository,
     preference_repository,
     rating_repository,
@@ -80,6 +81,14 @@ def generate_recommendations(
 
     explicit_preferences = preference_repository.get_by_domain(user_id, domain_code)
     catalog = item_repository.get_all(domain_code)
+
+    # Blacklist dura (docs/ARCHITECTURE.md sección 3.3): exclusión permanente y
+    # explícita de candidatos, distinta de la señal de rechazo (ratings.status=
+    # 'rejected') — se filtra del catálogo antes de puntuar, mismo patrón que ya usa
+    # seed_routes.py para excluir los ya valorados.
+    blacklisted_ids = blacklist_repository.get_item_ids(user_id, domain_code)
+    if blacklisted_ids:
+        catalog = [item for item in catalog if item.id not in blacklisted_ids]
 
     engine = TFIDFRecommendationEngine()
     recommendations = engine.recommend(

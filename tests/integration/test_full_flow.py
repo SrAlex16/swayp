@@ -87,6 +87,11 @@ def test_flujo_completo_seed_rating_job_resultado(client, seeded_catalog):
         ),
         (
             "post",
+            "/api/v1/domains/dominio-inventado/blacklist",
+            {"device_id": "test", "item_id": 1},
+        ),
+        (
+            "post",
             "/api/v1/domains/dominio-inventado/recommendations/jobs",
             {"device_id": "test"},
         ),
@@ -312,3 +317,44 @@ def test_todas_las_respuestas_incluyen_x_request_id(client, insert_item):
         request_id = response.headers.get("X-Request-Id")
         assert request_id is not None
         assert request_id != ""
+
+
+def test_blacklist_excluye_de_seed_y_de_recomendaciones(client, seeded_catalog):
+    device_id = "integration-test-user"
+    blacklisted_item_id = seeded_catalog[0]
+
+    blacklist_response = client.post(
+        "/api/v1/domains/games/blacklist",
+        json={"device_id": device_id, "item_id": blacklisted_item_id},
+    )
+    assert blacklist_response.status_code == 201
+
+    seed_response = client.get(
+        f"/api/v1/domains/games/seed?device_id={device_id}&count=10"
+    )
+    assert seed_response.status_code == 200
+    seed_item_ids = {item["item_id"] for item in seed_response.get_json()}
+    assert blacklisted_item_id not in seed_item_ids
+
+    # Valora unos cuantos items (ninguno el blacklisteado) para poder generar
+    # una recomendación real.
+    rated_item_ids = [
+        item_id for item_id in seeded_catalog if item_id != blacklisted_item_id
+    ][:3]
+    for item_id in rated_item_ids:
+        rating_response = client.post(
+            "/api/v1/domains/games/ratings",
+            json={"device_id": device_id, "item_id": item_id, "status": "interested"},
+        )
+        assert rating_response.status_code == 201
+
+    job_response = client.post(
+        "/api/v1/domains/games/recommendations/jobs", json={"device_id": device_id}
+    )
+    assert job_response.status_code == 202
+    job_id = job_response.get_json()["job_id"]
+
+    job_data = _poll_job_until_done(client, job_id)
+    assert job_data["status"] == "done"
+    result_item_ids = {item["item_id"] for item in job_data["result"]}
+    assert blacklisted_item_id not in result_item_ids

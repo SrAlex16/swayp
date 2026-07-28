@@ -84,6 +84,17 @@
 
 **Diseñado en su momento (sección 11 de ARCHITECTURE.md) pero nunca implementado hasta ahora.** El consumo desde Flutter (botón/gesto de "volver atrás" en Descubrir) queda para un bloque de frontend futuro — este bloque es solo el endpoint.
 
+## Blacklist dura — capa de API (docs/ARCHITECTURE.md sección 3.3)
+
+- [x] Tabla `blacklist` (`user_id, item_id, domain_code, created_at`, `PRIMARY KEY (user_id, item_id)`) añadida a `src/core/db.py`, idempotente como el resto del esquema
+- [x] `blacklist_repository`: `add(user_id, item_id, domain_code)` idempotente (`INSERT OR IGNORE`, no falla ni duplica en un segundo `add` del mismo par) y `get_item_ids(user_id, domain_code) -> set[int]`
+- [x] `POST /domains/<domain_code>/blacklist` — valida dominio y que el item exista en ese dominio, resuelve/crea el usuario, responde `201`
+- [x] Exclusión aplicada en `seed_routes.py` (junto a los ya valorados) y en `recommendation_service.py` (filtrando el catálogo antes de puntuar) — mismo patrón de exclusión en ambos sitios
+- [x] Tests de repository (`add` idempotente, `get_item_ids` filtra por dominio) y de integración (blacklistear un item real y confirmar que no aparece ni en `/seed` ni en el resultado de un job de recomendaciones); caso también añadido al test parametrizado de "dominio inexistente da 404 en todas las rutas"
+- [x] Suite completa: 69 tests, `pytest -v` en verde
+
+**Distinta de `ratings.status='rejected'` a propósito:** el rechazo es señal de entrenamiento (pesa en el perfil, sección 9), la blacklist es exclusión permanente sin peso en el modelo — "no me lo vuelvas a enseñar nunca", no "no me gustó esto". Diseñada en su momento (sección 3.3) pero la tabla nunca se llegó a crear hasta ahora.
+
 ## Testing (docs/ARCHITECTURE.md sección 5)
 
 - [x] Infraestructura de pytest (`pytest.ini`, `tests/conftest.py`): fixture `temp_db` (BD SQLite aislada en `tmp_path`, valida el seed de `domains`/`signal_weights` en cada test) y `sample_items` (10 items sintéticos para el motor)
