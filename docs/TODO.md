@@ -119,11 +119,13 @@
 
 **Fundamentos del frontend completados** (rebranding + dependencias + arranque mínimo confirmado, con build de Android real funcionando). Próximo bloque: arquitectura de carpetas (`core/`, `domain/`, `data/`, `features/`) siguiendo docs/ARCHITECTURE.md sección 4.2.
 
-## Nuevas ideas
-- [x] Botón de rollback en la pantalla principal. En caso de que el usuario se equivoque, que pueda modificar la última opción
-- [x] Blocklist. En Tinder hay un sistema para coger a los contactos directamente desde la agenda del teléfono y bloquearlos para que no aparezcan en la pantalla principal. En Swayp hay que hacer algo parecido, es decir, que el usuario pueda añadir obras que conoce y ha consumido (independientemente de si les gusta o no (aunque realmente estaría bien saber si esas obras les ha gustado para entrenar al modelo)) para que estas no aparezcan en la pantalla principal
-- [x] Entrenar el modelo en función del gusto del usuario. Con forme va dando likes / dislikes, vectorizar ese registro para ir recomendando obras cada vez más similares o que puedan gustale. Es decir, cuando tengamos el algoritmo entrenado, podríamos saltarnos esta regla aleatóriamente cada X recomendaciones, de forma que salga una recomendación diferente a las vectorizadas para tener obras variadas dentro del algoritmo y no recomendar siempre lo mismo
-- [x] Modo oscuro. El usuario puede elegir manualmente o de forma automáticacogiendo el modo por defecto del dispositivo
-- [x] Cambiar idioma. El usuario puede elegir entre español o inglés o que se ponga solo en función del idioma del dispositivo
-- [x] Filtros para mostrar obras. Género, edad recomendada, duración estimada...
-- [x] pantalla de guardado no se actualiza automáticamente. Cuando doy like, no aparece nada, para que aparezcan las obras hay que refrescar la pantalla cerrando la app y volviendola a abrir
+## Nuevas ideas (añadir o completar con las que ya tenemos)
+- [x] Que se puedan eliminar obras de la lista de guardados sin que afecte al modelo. Por ejemplo si le he dado like sin querer
+- [x] Quitar opción "Ya lo conozco". Más simple, si algo me gusta o me puede gustar le doy like (independientemente de si lo conozco) si no, le doy que no me interesa
+- [x] Cuando añadimos a la blocklist tenemos que sacar un aviso diciendo que no se volverán a recomendar películas de esa saga en concreto, y modificar la funcionlaidad del botón para que haga eso mismo, no volver a recomendar ni esa obra ni ninguna de esa saga
+- [x] Más variedad en películas
+- [x] botón en perfil para poder resetear el algoritmo manteniendo las obras guardadas
+- [x] botón para omitir recomendación. No es like ni rechazo, simplemente omite esa obra y pasa a la siguiente (la obra omitida puede volver a salir)
+- [x] no recomendar ediciones especiales del mismo juego (ej: me recomienda skyrim, y luego skyrim special edition). Aquí el problema está en como diferenciar obras que son radicalmente diferentes aunque técnicamente sean la misma (ej ff7 y ff7 remake pt1, pt2...) En este caso sí que habría que recomendarlo, pero en casos en los que, por ejemplo (tlou 1 y tlou 1 remake) sí que no hay diferencia prácticamente en ambos, por lo que simplemente habría que recomendar una (a ser posible la úlitma que haya salido siempre). En juegos en los que tenemos varias partes también (como el final 7 remake) o bien recomendamos el juego completo, o bien la primera parte (o recomendamos cada parte como juegos diferentes, realmente esto no sé como sería mejor hacerlo). Podríamos fijarnos en la fecha de lanzamiento a la hora de recomendar juegos. Por ejemplo en casos de Tomb Raider, hay que diferenciar entre el primero de la PSX del de la saga de Crystal Dinamycs. Habría que recomendar ambos pero se llaman igual, por lo que los diferenciamos fijándonos en las fechas de lanzamiento.
+- [x] en la lista de guardados, ponerle una marca sutil a las obras nuevas que se acaban de añadir. Esta marca debe desaparecer cuando salga de la pantalla de guardados
+- [x] poder variar el orden en el que se guardan las obras (orden alfabético o recientemente añadidos)
