@@ -11,7 +11,11 @@ class RatingsRepository {
 
   final Ref _ref;
 
-  Future<void> submitRating({
+  /// Devuelve el `id` del rating creado (o del ya existente, en el caso
+  /// idempotente de reintento con el mismo status) — lo necesita
+  /// [DeckNotifier.undo] para poder borrarlo si hace falta deshacer el
+  /// swipe (docs/ARCHITECTURE.md sección 10).
+  Future<int> submitRating({
     required String domainCode,
     required int itemId,
     required String status,
@@ -20,9 +24,26 @@ class RatingsRepository {
     final deviceId = await _ref.read(deviceIdProvider.future);
 
     try {
-      await apiClient.dio.post<Map<String, dynamic>>(
+      final response = await apiClient.dio.post<Map<String, dynamic>>(
         '/domains/$domainCode/ratings',
         data: {'device_id': deviceId, 'item_id': itemId, 'status': status},
+      );
+      return response.data!['id'] as int;
+    } on DioException catch (error) {
+      throw AppException.fromDioError(error);
+    }
+  }
+
+  /// `DELETE /domains/<domain_code>/ratings/<rating_id>` (undo del swipe,
+  /// docs/ARCHITECTURE.md sección 10).
+  Future<void> deleteRating({required String domainCode, required int ratingId}) async {
+    final apiClient = _ref.read(apiClientProvider);
+    final deviceId = await _ref.read(deviceIdProvider.future);
+
+    try {
+      await apiClient.dio.delete<void>(
+        '/domains/$domainCode/ratings/$ratingId',
+        queryParameters: {'device_id': deviceId},
       );
     } on DioException catch (error) {
       throw AppException.fromDioError(error);

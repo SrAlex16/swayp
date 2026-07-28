@@ -24,16 +24,21 @@ class _FakeRatingsRepository extends RatingsRepository {
 
   final void Function(int itemId, String status)? onSubmit;
   final AppException? failWith;
+  int _nextRatingId = 100;
 
   @override
-  Future<void> submitRating({
+  Future<int> submitRating({
     required String domainCode,
     required int itemId,
     required String status,
   }) async {
     onSubmit?.call(itemId, status);
     if (failWith != null) throw failWith!;
+    return _nextRatingId++;
   }
+
+  @override
+  Future<void> deleteRating({required String domainCode, required int ratingId}) async {}
 }
 
 void main() {

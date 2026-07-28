@@ -9,7 +9,8 @@ import 'deck_provider.dart';
 
 /// Pantalla de Descubrir (docs/ARCHITECTURE.md sección 7.1) — pantalla de
 /// arranque de la app. Muestra la carta superior del mazo del dominio
-/// activo, con swipe real (gesto de arrastre + botones ✕/✓).
+/// activo, con swipe real (gesto de arrastre + botones ✕/✓), undo de un
+/// solo nivel (sección 10) y el toggle "ya lo conozco" (sección 7.1).
 class RecommendationsScreen extends ConsumerWidget {
   const RecommendationsScreen({super.key});
 
@@ -17,6 +18,8 @@ class RecommendationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentDomainAsync = ref.watch(currentDomainProvider);
     final deckAsync = ref.watch(deckProvider);
+    final canUndo = ref.watch(canUndoProvider);
+    final alreadyKnown = ref.watch(alreadyKnownToggleProvider);
 
     ref.listen<AppException?>(swipeErrorProvider, (previous, next) {
       if (next == null) return;
@@ -44,7 +47,11 @@ class RecommendationsScreen extends ConsumerWidget {
             return const Center(child: Text('No hay más obras por ahora en este dominio'));
           }
           final topItem = items.first;
-          void swipe(String status) => ref.read(deckProvider.notifier).swipe(topItem, status);
+          void swipe(String status) {
+            ref
+                .read(deckProvider.notifier)
+                .swipe(topItem, status, alreadyKnown: alreadyKnown);
+          }
 
           return Column(
             children: [
@@ -52,12 +59,17 @@ class RecommendationsScreen extends ConsumerWidget {
                 child: _SwipeableCard(
                   key: ValueKey(topItem.itemId),
                   item: topItem,
+                  alreadyKnown: alreadyKnown,
+                  onToggleAlreadyKnown: () =>
+                      ref.read(alreadyKnownToggleProvider.notifier).toggle(),
                   onSwiped: swipe,
                 ),
               ),
               _ActionButtonsRow(
                 onReject: () => swipe('rejected'),
                 onAccept: () => swipe('interested'),
+                canUndo: canUndo,
+                onUndo: () => ref.read(deckProvider.notifier).undo(),
               ),
             ],
           );
@@ -142,11 +154,22 @@ class _DeckError extends StatelessWidget {
 /// (docs/ARCHITECTURE.md sección 7.1): rotación/fade sutiles mientras se
 /// arrastra; al superar el umbral de distancia dispara `onSwiped` con
 /// "interested" (derecha) o "rejected" (izquierda) y suelta el arrastre. Si
-/// no llega al umbral, la carta vuelve al centro.
+/// no llega al umbral, la carta vuelve al centro. Incluye el toggle "ya lo
+/// conozco" en la esquina — [onSwiped] siempre manda el status base
+/// (`interested`/`rejected`); es [DeckNotifier.swipe] quien lo remapea a
+/// `known_liked`/`known_disliked` según [alreadyKnown].
 class _SwipeableCard extends StatefulWidget {
-  const _SwipeableCard({required super.key, required this.item, required this.onSwiped});
+  const _SwipeableCard({
+    required super.key,
+    required this.item,
+    required this.alreadyKnown,
+    required this.onToggleAlreadyKnown,
+    required this.onSwiped,
+  });
 
   final Item item;
+  final bool alreadyKnown;
+  final VoidCallback onToggleAlreadyKnown;
   final ValueChanged<String> onSwiped;
 
   @override
@@ -182,9 +205,44 @@ class _SwipeableCardState extends State<_SwipeableCard> {
         offset: _dragOffset,
         child: Transform.rotate(
           angle: angle,
-          child: Opacity(opacity: opacity, child: _TopCard(item: widget.item)),
+          child: Opacity(
+            opacity: opacity,
+            child: Stack(
+              children: [
+                _TopCard(item: widget.item),
+                Positioned(
+                  top: 24,
+                  right: 24,
+                  child: _AlreadyKnownToggle(
+                    active: widget.alreadyKnown,
+                    onTap: widget.onToggleAlreadyKnown,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Toggle "ya lo conozco" (docs/ARCHITECTURE.md sección 7.1): resuelve con
+/// fricción mínima el caso de que aparezca algo que el usuario ya ha
+/// consumido, sin necesitar una pantalla aparte.
+class _AlreadyKnownToggle extends StatelessWidget {
+  const _AlreadyKnownToggle({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      label: const Text('Ya lo conozco'),
+      avatar: Icon(active ? Icons.visibility : Icons.visibility_outlined),
+      selected: active,
+      onSelected: (_) => onTap(),
     );
   }
 }
@@ -264,12 +322,21 @@ class _CardImage extends StatelessWidget {
   }
 }
 
-/// Botones espejo del gesto de swipe (docs/ARCHITECTURE.md sección 7.1).
+/// Botones espejo del gesto de swipe (docs/ARCHITECTURE.md sección 7.1),
+/// más el de "volver atrás" (sección 10) entre medio — deshabilitado si no
+/// hay nada que deshacer.
 class _ActionButtonsRow extends StatelessWidget {
-  const _ActionButtonsRow({required this.onReject, required this.onAccept});
+  const _ActionButtonsRow({
+    required this.onReject,
+    required this.onAccept,
+    required this.canUndo,
+    required this.onUndo,
+  });
 
   final VoidCallback onReject;
   final VoidCallback onAccept;
+  final bool canUndo;
+  final VoidCallback onUndo;
 
   @override
   Widget build(BuildContext context) {
@@ -279,7 +346,13 @@ class _ActionButtonsRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _ActionButton(icon: Icons.close, color: Colors.red, onPressed: onReject),
-          const SizedBox(width: 32),
+          const SizedBox(width: 24),
+          _ActionButton(
+            icon: Icons.undo,
+            color: Colors.grey.shade700,
+            onPressed: canUndo ? onUndo : null,
+          ),
+          const SizedBox(width: 24),
           _ActionButton(icon: Icons.favorite, color: Colors.green, onPressed: onAccept),
         ],
       ),
@@ -292,14 +365,14 @@ class _ActionButton extends StatelessWidget {
 
   final IconData icon;
   final Color color;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton(
       heroTag: null,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      foregroundColor: color,
+      foregroundColor: onPressed == null ? Theme.of(context).disabledColor : color,
       onPressed: onPressed,
       child: Icon(icon),
     );
