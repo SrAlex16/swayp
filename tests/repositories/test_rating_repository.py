@@ -111,6 +111,24 @@ def test_get_by_user_and_item_inexistente(user_and_item):
     assert rating_repository.get_by_user_and_item(user.id, item_id) is None
 
 
+def test_delete_existente_devuelve_true_y_la_fila_desaparece(user_and_item):
+    user, item_id = user_and_item
+    created = rating_repository.create(
+        user_id=user.id,
+        item_id=item_id,
+        domain_code="games",
+        status="interested",
+        source="onboarding",
+    )
+
+    assert rating_repository.delete(created.id) is True
+    assert rating_repository.get_by_id(created.id) is None
+
+
+def test_delete_inexistente_devuelve_false(items_table):
+    assert rating_repository.delete(999999) is False
+
+
 def test_unique_user_item_falla_en_segundo_create(user_and_item):
     """ratings tiene UNIQUE(user_id, item_id) y create() no maneja el conflicto
     (a diferencia de preference_repository/user_profile_repository, que sí usan

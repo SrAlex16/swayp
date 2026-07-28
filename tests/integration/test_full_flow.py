@@ -81,6 +81,11 @@ def test_flujo_completo_seed_rating_job_resultado(client, seeded_catalog):
             {"device_id": "test", "status": "interested"},
         ),
         (
+            "delete",
+            "/api/v1/domains/dominio-inventado/ratings/1?device_id=test",
+            None,
+        ),
+        (
             "post",
             "/api/v1/domains/dominio-inventado/recommendations/jobs",
             {"device_id": "test"},
@@ -176,6 +181,53 @@ def test_pending_confirmation_flujo(client, insert_item):
     )
     assert pending_after.status_code == 200
     assert pending_after.get_json() == []
+
+
+def test_delete_rating_propio_da_204_y_desaparece_de_pending_confirmation(
+    client, insert_item
+):
+    device_id = "integration-test-user"
+    item_id = insert_item("games", "ext-1", "Solo Item")
+
+    rating_response = client.post(
+        "/api/v1/domains/games/ratings",
+        json={"device_id": device_id, "item_id": item_id, "status": "interested"},
+    )
+    rating_id = rating_response.get_json()["id"]
+
+    pending_before = client.get(
+        f"/api/v1/domains/games/pending-confirmation?device_id={device_id}"
+    )
+    assert {entry["rating_id"] for entry in pending_before.get_json()} == {rating_id}
+
+    delete_response = client.delete(
+        f"/api/v1/domains/games/ratings/{rating_id}?device_id={device_id}"
+    )
+    assert delete_response.status_code == 204
+    assert delete_response.data == b""
+
+    pending_after = client.get(
+        f"/api/v1/domains/games/pending-confirmation?device_id={device_id}"
+    )
+    assert pending_after.get_json() == []
+
+
+def test_delete_rating_de_otro_device_id_da_404(client, insert_item):
+    owner_device_id = "integration-test-user-owner"
+    other_device_id = "integration-test-user-other"
+    item_id = insert_item("games", "ext-1", "Solo Item")
+
+    rating_response = client.post(
+        "/api/v1/domains/games/ratings",
+        json={"device_id": owner_device_id, "item_id": item_id, "status": "interested"},
+    )
+    rating_id = rating_response.get_json()["id"]
+
+    delete_response = client.delete(
+        f"/api/v1/domains/games/ratings/{rating_id}?device_id={other_device_id}"
+    )
+    assert delete_response.status_code == 404
+    assert delete_response.get_json()["error"]["code"] == "NOT_FOUND"
 
 
 def test_perfil_y_preferencias_flujo(client, items_table):

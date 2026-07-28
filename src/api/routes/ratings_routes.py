@@ -174,6 +174,39 @@ def update_rating(domain_code: str, rating_id: int):
     return jsonify(_rating_to_dict(updated)), 200
 
 
+@ratings_bp.route("/domains/<domain_code>/ratings/<int:rating_id>", methods=["DELETE"])
+def delete_rating(domain_code: str, rating_id: int):
+    require_enabled_domain(domain_code)
+
+    device_id = request.args.get("device_id")
+    if not device_id:
+        raise ValidationError("device_id es obligatorio")
+
+    user = user_repository.get_or_create_by_device_id(device_id)
+
+    rating = rating_repository.get_by_id(rating_id)
+    # Mismo patrón de ownership que el PATCH: NotFoundError tanto si no existe como
+    # si es de otro usuario/dominio, para no revelar la existencia de un rating ajeno.
+    if rating is None or rating.domain_code != domain_code or rating.user_id != user.id:
+        raise NotFoundError(f"Rating {rating_id} no encontrado")
+
+    rating_repository.delete(rating_id)
+
+    logger.info(
+        "rating borrado (undo del swipe, ver docs/ARCHITECTURE.md sección 11)",
+        extra={
+            "layer": "api",
+            "event": "rating_deleted",
+            "rating_id": rating_id,
+            "user_id": user.id,
+            "domain_code": domain_code,
+            "previous_status": rating.status,
+        },
+    )
+
+    return "", 204
+
+
 @ratings_bp.route("/domains/<domain_code>/pending-confirmation", methods=["GET"])
 def get_pending_confirmation(domain_code: str):
     require_enabled_domain(domain_code)

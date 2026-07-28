@@ -146,6 +146,26 @@ def get_by_id(rating_id: int) -> Rating | None:
         conn.close()
 
 
+def delete(rating_id: int) -> bool:
+    conn = get_connection()
+    try:
+        cursor = conn.execute("DELETE FROM ratings WHERE id = ?", (rating_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+        logger.debug(
+            "rating borrado",
+            extra={
+                "layer": "repository",
+                "event": "rating_deleted",
+                "rating_id": rating_id,
+                "deleted": deleted,
+            },
+        )
+        return deleted
+    finally:
+        conn.close()
+
+
 def update_status(rating_id: int, status: str) -> Rating | None:
     conn = get_connection()
     try:

@@ -75,6 +75,15 @@
 - [x] Código formateado con `ruff format .` (29 archivos reformateados); confirmado con `pytest -v` que el formateo no cambió comportamiento (44/44 tests siguen pasando)
 - [x] `.github/workflows/backend-ci.yml` — lint (`ruff check`) + formato (`ruff format --check`) + tests (`pytest -v`) en cada push/PR a `main`
 
+## Undo del swipe — capa de API (docs/ARCHITECTURE.md sección 11)
+
+- [x] `rating_repository.delete(rating_id)` — `DELETE FROM ratings WHERE id = ?`, devuelve `True`/`False` según si borró una fila
+- [x] `DELETE /domains/<domain_code>/ratings/<rating_id>?device_id=...` — mismo patrón de ownership que el `PATCH` ya existente (404 tanto si no existe como si es de otro `device_id`/dominio, para no revelar la existencia de un rating ajeno); responde `204` sin body
+- [x] Tests de repository (`delete` existente devuelve `True` y la fila desaparece; `delete` inexistente devuelve `False`) y de integración vía `app.test_client()` (borrar un rating propio da `204` y desaparece de `pending-confirmation`; borrar el de otro `device_id` da `404`); caso también añadido al test parametrizado de "dominio inexistente da 404 en todas las rutas"
+- [x] Suite completa: 63 tests, `pytest -v` en verde
+
+**Diseñado en su momento (sección 11 de ARCHITECTURE.md) pero nunca implementado hasta ahora.** El consumo desde Flutter (botón/gesto de "volver atrás" en Descubrir) queda para un bloque de frontend futuro — este bloque es solo el endpoint.
+
 ## Testing (docs/ARCHITECTURE.md sección 5)
 
 - [x] Infraestructura de pytest (`pytest.ini`, `tests/conftest.py`): fixture `temp_db` (BD SQLite aislada en `tmp_path`, valida el seed de `domains`/`signal_weights` en cada test) y `sample_items` (10 items sintéticos para el motor)
