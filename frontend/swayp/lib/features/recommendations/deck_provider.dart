@@ -5,12 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
 import '../../data/repositories/ratings_repository.dart';
+import '../../data/repositories/recommendations_repository.dart';
 import '../../data/repositories/seed_repository.dart';
 import '../../domain/models/item.dart';
 import '../domain_selection/current_domain_provider.dart';
 import '../saved/saved_provider.dart';
+import 'batch_strategy.dart';
 
 const int _seedCount = 10;
+
+// Polling del job de recomendaciones: cada 300ms, máximo 8 intentos (~2.4s
+// de espera total). Si se agota sin terminar, o si el job da status
+// "error", cae a /seed para ese lote como fallback silencioso. Valores por
+// defecto de [DeckNotifier] — inyectables en el constructor para que los
+// tests puedan forzar el camino de "se agotan los intentos" sin esperar
+// ~2.4s reales de verdad.
+const Duration _defaultJobPollInterval = Duration(milliseconds: 300);
+const int _defaultJobPollMaxAttempts = 8;
 
 /// Último error al enviar un rating en segundo plano (ver
 /// [DeckNotifier.swipe]/[DeckNotifier.undo]). Señal de "un solo disparo",
@@ -84,6 +95,15 @@ final alreadyKnownToggleProvider = NotifierProvider<AlreadyKnownToggleNotifier, 
 /// alternar de dominio) — cambiar de dominio siempre vuelve a pedir el
 /// seed. Se puede convertir a `family` más adelante si hace falta.
 class DeckNotifier extends AsyncNotifier<List<Item>> {
+  DeckNotifier({
+    Duration jobPollInterval = _defaultJobPollInterval,
+    int jobPollMaxAttempts = _defaultJobPollMaxAttempts,
+  }) : _jobPollInterval = jobPollInterval,
+       _jobPollMaxAttempts = jobPollMaxAttempts;
+
+  final Duration _jobPollInterval;
+  final int _jobPollMaxAttempts;
+
   // Bookkeeping del último swipe, para poder deshacerlo (undo de un solo
   // nivel: un swipe o un undo nuevos sustituyen esto, nunca se acumula).
   Item? _lastSwipedItem;
@@ -95,7 +115,60 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
     final domain = await ref.watch(currentDomainProvider.future);
     if (domain == null) return const [];
 
-    return ref.read(seedRepositoryProvider).getSeed(domain.code, count: _seedCount);
+    final source = await ref.read(batchStrategyStoreProvider).nextBatchSource(domain.code);
+    if (source == BatchSource.seed) {
+      return ref.read(seedRepositoryProvider).getSeed(domain.code, count: _seedCount);
+    }
+
+    return _loadFromEngine(domain.code);
+  }
+
+  /// Pide un lote al motor real (`POST recommendations/jobs` + polling a
+  /// `GET /jobs/<id>`, docs/ARCHITECTURE.md sección 3.5). Si el job falla,
+  /// da error, o no termina dentro de [_jobPollMaxAttempts] intentos, cae a
+  /// `/seed` como fallback silencioso — el usuario nunca se queda sin
+  /// mazo por un problema del motor.
+  Future<List<Item>> _loadFromEngine(String domainCode) async {
+    try {
+      final jobId = await ref
+          .read(recommendationsRepositoryProvider)
+          .requestRecommendationJob(domainCode);
+
+      for (var attempt = 0; attempt < _jobPollMaxAttempts; attempt++) {
+        await Future<void>.delayed(_jobPollInterval);
+        final jobStatus = await ref.read(recommendationsRepositoryProvider).pollJob(jobId);
+
+        if (jobStatus.isDone) {
+          return jobStatus.result ?? const [];
+        }
+        if (jobStatus.isError) {
+          developer.log(
+            'job de recomendaciones $jobId falló (${jobStatus.errorMessage}), '
+            'fallback a /seed para este lote',
+            name: 'swayp.deck',
+            level: 900,
+          );
+          return ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+        }
+        // "pending"/"running": sigue esperando.
+      }
+
+      developer.log(
+        'job de recomendaciones $jobId no terminó tras $_jobPollMaxAttempts intentos, '
+        'fallback a /seed para este lote',
+        name: 'swayp.deck',
+        level: 900,
+      );
+      return ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+    } on AppException catch (error) {
+      developer.log(
+        'fallo al pedir/consultar el job de recomendaciones '
+        '(${error.code} ${error.message}), fallback a /seed para este lote',
+        name: 'swayp.deck',
+        level: 900,
+      );
+      return ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+    }
   }
 
   /// Valora [item]. Sin el toggle "ya lo conozco" activo, [status] debe
@@ -159,6 +232,7 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
     ref.read(canUndoProvider.notifier).set(false);
 
     final ratingId = await ratingIdFuture;
+    if (!ref.mounted) return;
     if (ratingId == null) {
       // El POST original ya falló (y se reportó entonces): nada que borrar
       // en el backend, así que no hay motivo para no reinsertar la carta.
@@ -177,11 +251,15 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
         name: 'swayp.deck',
         level: 1000,
       );
-      ref.read(swipeErrorProvider.notifier).state = error;
+      if (ref.mounted) {
+        ref.read(swipeErrorProvider.notifier).state = error;
+      }
       return;
     }
 
-    _reinsert(item);
+    if (ref.mounted) {
+      _reinsert(item);
+    }
   }
 
   void _reinsert(Item item) {
@@ -196,6 +274,18 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
         itemId: item.itemId,
         status: status,
       );
+      // Cada `await` es un hueco async en el que este notifier puede haberse
+      // desechado (ej. el usuario cambió de dominio mientras el envío
+      // todavía estaba en vuelo) — `ref.mounted` evita tocar `ref` tras eso,
+      // como recomienda Riverpod.
+      if (!ref.mounted) return ratingId;
+
+      // Cuenta para batch_strategy.dart (umbral para pasar de /seed al
+      // motor), sin distinguir por status: es señal de actividad, no solo
+      // de "interested".
+      await ref.read(batchStrategyStoreProvider).incrementSwipeCount(domainCode);
+      if (!ref.mounted) return ratingId;
+
       if (status == 'interested') {
         // Guardados (docs/ARCHITECTURE.md sección 7.3) vive de este status;
         // invalida su provider para que se entere sin depender de que su
@@ -210,6 +300,7 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
         name: 'swayp.deck',
         level: 1000,
       );
+      if (!ref.mounted) return null;
       ref.read(swipeErrorProvider.notifier).state = error;
       return null;
     }

@@ -6,10 +6,12 @@ import 'package:swayp/core/errors/app_exception.dart';
 import 'package:swayp/data/repositories/domain_repository.dart';
 import 'package:swayp/data/repositories/pending_confirmation_repository.dart';
 import 'package:swayp/data/repositories/ratings_repository.dart';
+import 'package:swayp/data/repositories/recommendations_repository.dart';
 import 'package:swayp/data/repositories/seed_repository.dart';
 import 'package:swayp/domain/models/domain.dart';
 import 'package:swayp/domain/models/item.dart';
 import 'package:swayp/domain/models/pending_rating.dart';
+import 'package:swayp/features/recommendations/batch_strategy.dart';
 import 'package:swayp/features/recommendations/deck_provider.dart';
 import 'package:swayp/features/saved/saved_provider.dart';
 
@@ -87,6 +89,44 @@ class _FakePendingConfirmationRepository extends PendingConfirmationRepository {
   Future<void> confirm(String domainCode, int ratingId, String status) async {}
 }
 
+/// Fuerza siempre "motor" como origen del siguiente lote, sin depender de
+/// los contadores reales de `shared_preferences` — estos tests solo
+/// quieren ejercitar el camino de `_loadFromEngine`, no la lógica de
+/// batch_strategy.dart (que ya tiene sus propios tests).
+class _AlwaysEngineBatchStrategyStore extends BatchStrategyStore {
+  const _AlwaysEngineBatchStrategyStore();
+
+  @override
+  Future<BatchSource> nextBatchSource(String domainCode) async => BatchSource.engine;
+
+  @override
+  Future<void> incrementSwipeCount(String domainCode) async {}
+}
+
+/// Devuelve la siguiente entrada de [jobStatuses] en cada `pollJob` (se
+/// queda en la última una vez agotadas), simulando el avance de un job
+/// real sin llamadas de red.
+class _FakeRecommendationsRepository extends RecommendationsRepository {
+  _FakeRecommendationsRepository(super.ref, {this.requestFailWith, this.jobStatuses = const []});
+
+  final AppException? requestFailWith;
+  final List<JobStatus> jobStatuses;
+  int _pollCallCount = 0;
+
+  @override
+  Future<String> requestRecommendationJob(String domainCode) async {
+    if (requestFailWith != null) throw requestFailWith!;
+    return 'job-1';
+  }
+
+  @override
+  Future<JobStatus> pollJob(String jobId) async {
+    final status = jobStatuses[_pollCallCount.clamp(0, jobStatuses.length - 1)];
+    _pollCallCount++;
+    return status;
+  }
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -113,6 +153,11 @@ void main() {
 
     final afterSwipe = container.read(deckProvider).value;
     expect(afterSwipe?.map((item) => item.itemId), [2]);
+
+    // Deja correr el envío en segundo plano antes de que addTearDown
+    // destruya el container — si no, puede seguir en vuelo cuando el
+    // container ya no existe.
+    await Future<void>.delayed(Duration.zero);
   });
 
   test('al quedarse sin items, se recarga el mazo automáticamente', () async {
@@ -309,4 +354,122 @@ void main() {
       expect(submitted.last, (domainCode: 'games', itemId: 2, status: 'rejected'));
     },
   );
+
+  test('si el job termina con éxito, usa el resultado del motor (no /seed)', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        batchStrategyStoreProvider.overrideWithValue(const _AlwaysEngineBatchStrategyStore()),
+        recommendationsRepositoryProvider.overrideWith(
+          (ref) => _FakeRecommendationsRepository(
+            ref,
+            jobStatuses: const [
+              JobStatus(status: 'running'),
+              JobStatus(status: 'done', result: [_item2]),
+            ],
+          ),
+        ),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1],
+          ]),
+        ),
+        deckProvider.overrideWith(
+          () => DeckNotifier(jobPollInterval: const Duration(milliseconds: 1)),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final deck = await container.read(deckProvider.future);
+
+    expect(deck.map((item) => item.itemId), [2]);
+  });
+
+  test('si el job da status "error", cae a /seed para ese lote', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        batchStrategyStoreProvider.overrideWithValue(const _AlwaysEngineBatchStrategyStore()),
+        recommendationsRepositoryProvider.overrideWith(
+          (ref) => _FakeRecommendationsRepository(
+            ref,
+            jobStatuses: const [JobStatus(status: 'error', errorMessage: 'motor caído')],
+          ),
+        ),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        deckProvider.overrideWith(
+          () => DeckNotifier(jobPollInterval: const Duration(milliseconds: 1)),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final deck = await container.read(deckProvider.future);
+
+    expect(deck.map((item) => item.itemId), [1, 2]);
+  });
+
+  test('si el job no termina tras los intentos máximos, cae a /seed', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        batchStrategyStoreProvider.overrideWithValue(const _AlwaysEngineBatchStrategyStore()),
+        recommendationsRepositoryProvider.overrideWith(
+          (ref) => _FakeRecommendationsRepository(
+            ref,
+            jobStatuses: const [JobStatus(status: 'running')],
+          ),
+        ),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item3],
+          ]),
+        ),
+        deckProvider.overrideWith(
+          () => DeckNotifier(
+            jobPollInterval: const Duration(milliseconds: 1),
+            jobPollMaxAttempts: 3,
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final deck = await container.read(deckProvider.future);
+
+    expect(deck.map((item) => item.itemId), [3]);
+  });
+
+  test('si falla la petición del job (POST), cae a /seed', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        batchStrategyStoreProvider.overrideWithValue(const _AlwaysEngineBatchStrategyStore()),
+        recommendationsRepositoryProvider.overrideWith(
+          (ref) => _FakeRecommendationsRepository(
+            ref,
+            requestFailWith: const AppException(code: 'NETWORK_ERROR', message: 'Sin conexión'),
+          ),
+        ),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1],
+          ]),
+        ),
+        deckProvider.overrideWith(
+          () => DeckNotifier(jobPollInterval: const Duration(milliseconds: 1)),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final deck = await container.read(deckProvider.future);
+
+    expect(deck.map((item) => item.itemId), [1]);
+  });
 }
