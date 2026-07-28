@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:swayp/core/errors/app_exception.dart';
+import 'package:swayp/data/repositories/blacklist_repository.dart';
 import 'package:swayp/data/repositories/domain_repository.dart';
 import 'package:swayp/data/repositories/pending_confirmation_repository.dart';
 import 'package:swayp/data/repositories/ratings_repository.dart';
@@ -71,6 +72,21 @@ class _FakeRatingsRepository extends RatingsRepository {
   Future<void> deleteRating({required String domainCode, required int ratingId}) async {
     onDelete?.call((domainCode: domainCode, ratingId: ratingId));
     if (deleteFailWith != null) throw deleteFailWith!;
+  }
+}
+
+typedef _BlacklistedItem = ({String domainCode, int itemId});
+
+class _FakeBlacklistRepository extends BlacklistRepository {
+  _FakeBlacklistRepository(super.ref, {this.onAdd, this.failWith});
+
+  final void Function(_BlacklistedItem entry)? onAdd;
+  final AppException? failWith;
+
+  @override
+  Future<void> addToBlacklist({required String domainCode, required int itemId}) async {
+    onAdd?.call((domainCode: domainCode, itemId: itemId));
+    if (failWith != null) throw failWith!;
   }
 }
 
@@ -471,5 +487,72 @@ void main() {
     final deck = await container.read(deckProvider.future);
 
     expect(deck.map((item) => item.itemId), [1]);
+  });
+
+  test('blacklistCurrent() quita el item de la lista y no genera ningún rating', () async {
+    final blacklisted = <_BlacklistedItem>[];
+    final submittedRatings = <_SubmittedRating>[];
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith(
+          (ref) => _FakeRatingsRepository(ref, onSubmit: submittedRatings.add),
+        ),
+        blacklistRepositoryProvider.overrideWith(
+          (ref) => _FakeBlacklistRepository(ref, onAdd: blacklisted.add),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(deckProvider.future);
+
+    container.read(deckProvider.notifier).blacklistCurrent(_item1);
+
+    // Optimista: desaparece del mazo de inmediato.
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [2]);
+    // No participa en el undo de un nivel que ya existe.
+    expect(container.read(canUndoProvider), false);
+
+    // Deja correr el POST en segundo plano.
+    await Future<void>.delayed(Duration.zero);
+
+    expect(blacklisted, [(domainCode: 'games', itemId: 1)]);
+    expect(submittedRatings, isEmpty);
+  });
+
+  test('un fallo al blacklistear se expone vía swipeErrorProvider (mismo canal)', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith((ref) => _FakeRatingsRepository(ref)),
+        blacklistRepositoryProvider.overrideWith(
+          (ref) => _FakeBlacklistRepository(
+            ref,
+            failWith: const AppException(code: 'NETWORK_ERROR', message: 'Sin conexión'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(deckProvider.future);
+
+    container.read(deckProvider.notifier).blacklistCurrent(_item1);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(swipeErrorProvider)?.message, 'Sin conexión');
+    // No se reinserta, igual que un swipe fallido.
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [2]);
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
+import '../../core/theme/theme_mode_provider.dart';
 import '../../domain/models/item.dart';
 import '../domain_selection/current_domain_provider.dart';
 import '../domain_selection/domain_picker_sheet.dart';
@@ -63,6 +64,12 @@ class RecommendationsScreen extends ConsumerWidget {
                   onToggleAlreadyKnown: () =>
                       ref.read(alreadyKnownToggleProvider.notifier).toggle(),
                   onSwiped: swipe,
+                  onBlacklist: () {
+                    ref.read(deckProvider.notifier).blacklistCurrent(topItem);
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('No se te volverá a mostrar')));
+                  },
                 ),
               ),
               _ActionButtonsRow(
@@ -85,21 +92,31 @@ class RecommendationsScreen extends ConsumerWidget {
       builder: (context) => const _MainMenuSheet(),
     );
 
-    if (selection == _MenuAction.changeDomain && context.mounted) {
-      showModalBottomSheet(
-        context: context,
-        showDragHandle: true,
-        builder: (context) => const DomainPickerSheet(),
-      );
+    if (!context.mounted) return;
+
+    switch (selection) {
+      case _MenuAction.changeDomain:
+        showModalBottomSheet(
+          context: context,
+          showDragHandle: true,
+          builder: (context) => const DomainPickerSheet(),
+        );
+      case _MenuAction.theme:
+        showModalBottomSheet(
+          context: context,
+          showDragHandle: true,
+          builder: (context) => const _ThemeModeSheet(),
+        );
+      case null:
+        break;
     }
   }
 }
 
-enum _MenuAction { changeDomain }
+enum _MenuAction { changeDomain, theme }
 
-/// Menú de acciones de Descubrir. Por ahora solo tiene "Cambiar de obras";
-/// pensado para crecer con más opciones más adelante (docs/ARCHITECTURE.md
-/// sección 7.1).
+/// Menú de acciones de Descubrir (docs/ARCHITECTURE.md sección 7.1),
+/// pensado para crecer con más opciones más adelante.
 class _MainMenuSheet extends StatelessWidget {
   const _MainMenuSheet();
 
@@ -114,10 +131,51 @@ class _MainMenuSheet extends StatelessWidget {
             title: const Text('Cambiar de obras'),
             onTap: () => Navigator.pop(context, _MenuAction.changeDomain),
           ),
+          ListTile(
+            leading: const Icon(Icons.brightness_6_outlined),
+            title: const Text('Tema'),
+            onTap: () => Navigator.pop(context, _MenuAction.theme),
+          ),
         ],
       ),
     );
   }
+}
+
+/// Selector manual de tema (Sistema/Claro/Oscuro), sobre el
+/// `ThemeMode.system` por defecto — hoja aparte abierta desde el menú
+/// principal.
+class _ThemeModeSheet extends ConsumerWidget {
+  const _ThemeModeSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentMode = ref.watch(themeModeProvider);
+
+    return SafeArea(
+      child: RadioGroup<ThemeMode>(
+        groupValue: currentMode,
+        onChanged: (value) {
+          if (value == null) return;
+          ref.read(themeModeProvider.notifier).setThemeMode(value);
+          Navigator.pop(context);
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final mode in ThemeMode.values)
+              RadioListTile<ThemeMode>(title: Text(_themeModeLabel(mode)), value: mode),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _themeModeLabel(ThemeMode mode) => switch (mode) {
+    ThemeMode.system => 'Sistema',
+    ThemeMode.light => 'Claro',
+    ThemeMode.dark => 'Oscuro',
+  };
 }
 
 class _DeckError extends StatelessWidget {
@@ -165,12 +223,14 @@ class _SwipeableCard extends StatefulWidget {
     required this.alreadyKnown,
     required this.onToggleAlreadyKnown,
     required this.onSwiped,
+    required this.onBlacklist,
   });
 
   final Item item;
   final bool alreadyKnown;
   final VoidCallback onToggleAlreadyKnown;
   final ValueChanged<String> onSwiped;
+  final VoidCallback onBlacklist;
 
   @override
   State<_SwipeableCard> createState() => _SwipeableCardState();
@@ -218,6 +278,7 @@ class _SwipeableCardState extends State<_SwipeableCard> {
                     onTap: widget.onToggleAlreadyKnown,
                   ),
                 ),
+                Positioned(top: 24, left: 24, child: _BlacklistButton(onTap: widget.onBlacklist)),
               ],
             ),
           ),
@@ -243,6 +304,29 @@ class _AlreadyKnownToggle extends StatelessWidget {
       avatar: Icon(active ? Icons.visibility : Icons.visibility_outlined),
       selected: active,
       onSelected: (_) => onTap(),
+    );
+  }
+}
+
+/// Bloqueo permanente del ítem actual (docs/ARCHITECTURE.md sección 3.3):
+/// visualmente distinto del toggle y de los botones ✕/✓ — icono de
+/// "bloquear", no un chip de selección, para que no se confunda con una
+/// opción reversible.
+class _BlacklistButton extends StatelessWidget {
+  const _BlacklistButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black45,
+      shape: const CircleBorder(),
+      child: IconButton(
+        icon: const Icon(Icons.block, color: Colors.white),
+        tooltip: 'No volver a mostrar',
+        onPressed: onTap,
+      ),
     );
   }
 }

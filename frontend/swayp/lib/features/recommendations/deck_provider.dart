@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
+import '../../data/repositories/blacklist_repository.dart';
 import '../../data/repositories/ratings_repository.dart';
 import '../../data/repositories/recommendations_repository.dart';
 import '../../data/repositories/seed_repository.dart';
@@ -259,6 +260,50 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
 
     if (ref.mounted) {
       _reinsert(item);
+    }
+  }
+
+  /// Bloquea [item] permanentemente (docs/ARCHITECTURE.md sección 3.3):
+  /// exclusión dura y explícita, distinta de un swipe rechazado — no
+  /// genera ningún rating. Mismo patrón optimista que [swipe] (la carta se
+  /// quita del mazo al instante, el POST va en segundo plano), pero
+  /// deliberadamente NO toca el bookkeeping de [undo]: no se puede
+  /// deshacer un blacklist, así que un `undo()` posterior sigue actuando
+  /// (si aplica) sobre el último swipe real, no sobre esto. Si el POST
+  /// falla, se loguea y se expone vía [swipeErrorProvider] (mismo canal
+  /// que los errores de swipe) — la carta no se reinserta, igual que un
+  /// swipe fallido.
+  void blacklistCurrent(Item item) {
+    final domainCode = ref.read(currentDomainProvider).value?.code;
+
+    final current = state.value ?? const [];
+    final updated = current.where((candidate) => candidate.itemId != item.itemId).toList();
+    state = AsyncData(updated);
+
+    if (domainCode != null) {
+      unawaited(_submitBlacklist(domainCode, item));
+    }
+
+    if (updated.isEmpty) {
+      ref.invalidateSelf();
+    }
+  }
+
+  Future<void> _submitBlacklist(String domainCode, Item item) async {
+    try {
+      await ref.read(blacklistRepositoryProvider).addToBlacklist(
+        domainCode: domainCode,
+        itemId: item.itemId,
+      );
+    } on AppException catch (error) {
+      developer.log(
+        'fallo al blacklistear item ${item.itemId}: ${error.code} ${error.message}',
+        name: 'swayp.deck',
+        level: 1000,
+      );
+      if (ref.mounted) {
+        ref.read(swipeErrorProvider.notifier).state = error;
+      }
     }
   }
 
