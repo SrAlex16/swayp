@@ -13,14 +13,16 @@ logger = logging.getLogger(__name__)
 
 ratings_bp = Blueprint("ratings", __name__)
 
-# Modelo de señales completo (ver docs/ARCHITECTURE.md sección 9 y el Bloque 1 del
-# motor): interested/rejected llegan del swipe; known_liked/known_disliked se
-# alcanzan al confirmar desde la pantalla de Guardados (sección 7.3), normalmente vía
-# el PATCH de más abajo, aunque también se aceptan directamente en el POST.
-VALID_STATUSES = {"interested", "rejected", "known_liked", "known_disliked"}
+# Modelo de señales (ver docs/ARCHITECTURE.md sección 9): solo interested/rejected
+# vienen del swipe como señales de aprendizaje. skipped es un estado neutral para
+# omitir una tarjeta sin convertirla en señal positiva ni negativa.
+VALID_STATUSES = {"interested", "rejected", "skipped"}
 
-# Status que representa "aceptado sin confirmar todavía" — la bandeja de Guardados
-# (sección 7.3) vive de este estado hasta que el usuario confirma si ya lo conocía.
+# Status que identifica la colección de ratings que se muestran como Guardados
+# (sección 7.3): una lista simple de lo marcado como interested, sin flujo de
+# confirmación asociado — el usuario la vacía borrando ratings (DELETE, más abajo)
+# o actualizándolos a rejected si quiere quitarlos del listado. skipped no entra en
+# esta lista porque no representa un item guardado.
 PENDING_CONFIRMATION_STATUS = "interested"
 
 # El origen de este rating siempre es la baraja de onboarding en esta fase: el único
@@ -240,10 +242,10 @@ def get_pending_confirmation(domain_code: str):
         )
 
     logger.info(
-        "pendientes de confirmación servidos",
+        "guardados servidos",
         extra={
             "layer": "api",
-            "event": "pending_confirmation_served",
+            "event": "saved_items_served",
             "user_id": user.id,
             "domain_code": domain_code,
             "count": len(pending),

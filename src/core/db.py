@@ -81,11 +81,13 @@ CREATE TABLE IF NOT EXISTS blacklist (
 
 # Pesos por defecto del modelo de señales (ver docs/ARCHITECTURE.md, sección 9). Solo
 # se siembran si la tabla está vacía, para no pisar un ajuste manual posterior.
+# Solo interested/rejected (decisión de producto: se retiró known_liked/
+# known_disliked, ver docs/ARCHITECTURE.md sección 9) — esto no borra ni migra filas
+# ya existentes con esos status en una BD real, solo afecta a la siembra en tablas
+# vacías nuevas.
 DEFAULT_SIGNAL_WEIGHTS = {
     "rejected": -1.0,
     "interested": 0.3,
-    "known_liked": 1.0,
-    "known_disliked": -1.0,
 }
 
 # Qué dominios existen como concepto de producto (capa BD) — separado de qué adapter

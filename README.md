@@ -8,40 +8,51 @@ la mayoría de la UI.
 
 ## Estado actual
 
-El proyecto está en la **Fase 0** del roadmap de implementación (ver
-[`docs/TODO.md`](./docs/TODO.md) y [`docs/ROADMAP.md`](./docs/ROADMAP.md)): validando el
-motor de recomendación (TF-IDF + SVD) con un único dominio (videojuegos, vía la API de
-RAWG) desde un script de terminal, sin API REST ni app Flutter todavía.
+El proyecto ya cuenta con un backend funcional y validado:
 
-Para el diseño completo de la arquitectura objetivo (backend, frontend, esquema de
-datos, contrato de API...), ver [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+- API Flask con dominios, seed, ratings, jobs, recomendaciones, perfil, preferencias y blacklist.
+- Motor TF-IDF + SVD con shrinkage por volumen de ratings.
+- Modelo de señales simplificado a `interested`, `rejected` y `skipped`.
+- Suite de tests backend completa ejecutándose correctamente en el entorno del proyecto.
 
-## 🚀 Instalación y uso (Fase 0)
+La app Flutter sigue en fase de scaffolding; el siguiente paso es conectar la UI real con
+la API ya existente.
+
+Para el diseño completo de la arquitectura objetivo (backend, frontend, esquema de datos,
+contrato de API, UX y decisiones de alcance), ver [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+## 🚀 Instalación y uso
 
 **Requisitos**: Python 3.11+ y pip.
 
 ```bash
 git clone https://github.com/SrAlex16/swayp
 cd swayp
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Configura tu API key de RAWG en un archivo `.env` en la raíz:
+Configura tus variables de entorno si necesitas conectar adapters externos, por ejemplo:
 
-```
-RAWG_API_KEY=tu_api_key
+```bash
+cp .env.example .env
 ```
 
-Puebla el catálogo local y prueba el motor de recomendación:
+Ejecuta la API:
+
+```bash
+python run.py
+```
+
+Para poblar el catálogo local y probar el motor de recomendación de forma manual:
 
 ```bash
 python scripts/populate_catalog.py --count 200
 python recommend.py --user test --likes "Elden Ring" "Dark Souls" "Hollow Knight"
 ```
 
-`recommend.py` también admite `--debug` (desglosa `similarity_score`,
+`recommend.py` también admite `--debug` (desglose de `similarity_score`,
 `community_score_normalizado` y los términos TF-IDF compartidos por cada
 recomendación) e `--inspect-text` (imprime el `text_for_vectorization` guardado para
 un título, sin pasar por el motor):
@@ -50,9 +61,6 @@ un título, sin pasar por el motor):
 python recommend.py --user test --likes "Elden Ring" "Dark Souls" --debug
 python recommend.py --inspect-text "Elden Ring"
 ```
-
-> Las instrucciones de instalación y uso de la API REST y de la app Flutter están
-> pendientes de reescribir conforme avancen las fases 1-3 del roadmap.
 
 ## 🧪 Tests
 

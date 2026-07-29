@@ -4,6 +4,9 @@ Registro cronológico de avances. Formato: fecha, tipo de cambio, descripción b
 
 ## [Sin publicar]
 
+### Actualizado
+- Documentación principal del proyecto alineada con el backend actual: README, arquitectura y TODO ahora describen el modelo de señales simplificado (`interested`, `rejected`, `skipped`) y el estado real del frontend como scaffolding pendiente de conexión con la API.
+
 ### Añadido
 - Tests de integración de API (`tests/integration/test_full_flow.py`), último bloque de la suite de testing: `app.test_client()` de Flask contra una `temp_db` real (misma infraestructura de `tests/conftest.py`), con la tabla `items` creada a mano en `tests/integration/conftest.py` (no la crea `init_db()`, ver su docstring). 8 tests: flujo completo seed→ratings→job asíncrono→resultado (confirmando que el resultado excluye los items ya valorados); 404 `NOT_FOUND` en las 4 rutas con `domain_code` inválido (seed, ratings, jobs, preferences); idempotencia (200) y conflicto (409) al repetir un rating con mismo/distinto status; flujo de `pending-confirmation` (aparece con `interested`, desaparece tras el `PATCH` a `known_liked`); perfil y preferencias (vacíos → `PUT` → reflejados, y reemplazo total confirmado, no fusión); `GET /jobs/<uuid-inventado>` da 404; `X-Request-Id` presente y no vacío en toda respuesta, éxito o error. Suite completa: 58 tests (`pytest -v` en verde), sin necesidad de tocar ningún archivo de `src/` — todo el comportamiento esperado se confirmó a la primera.
 - CI/CD: `ruff` añadido a `requirements.txt` con configuración mínima (`ruff.toml`, solo excluye código no activo del proyecto). Decisión documentada (ADR-0005): conjunto de reglas por defecto (E4/E7/E9 + F), sin reglas de estilo adicionales por ahora. Código base reformateado con `ruff format .` (29 archivos), sin cambios de comportamiento (confirmado con la suite de tests completa). Nuevo `.github/workflows/backend-ci.yml`: lint + formato + tests en cada push/PR a `main`.

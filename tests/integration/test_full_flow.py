@@ -151,11 +151,30 @@ def test_rating_duplicado_status_distinto_da_409(client, insert_item):
 
     conflict = client.post(
         "/api/v1/domains/games/ratings",
-        json={"device_id": device_id, "item_id": item_id, "status": "known_liked"},
+        json={"device_id": device_id, "item_id": item_id, "status": "rejected"},
     )
 
     assert conflict.status_code == 409
     assert conflict.get_json()["error"]["code"] == "CONFLICT"
+
+
+def test_rating_skipped_es_aceptado_y_no_va_a_guardados(client, insert_item):
+    device_id = "integration-test-user"
+    item_id = insert_item("games", "ext-skip", "Solo Item Skip")
+
+    response = client.post(
+        "/api/v1/domains/games/ratings",
+        json={"device_id": device_id, "item_id": item_id, "status": "skipped"},
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()["status"] == "skipped"
+
+    pending = client.get(
+        f"/api/v1/domains/games/pending-confirmation?device_id={device_id}"
+    )
+    assert pending.status_code == 200
+    assert pending.get_json() == []
 
 
 def test_pending_confirmation_flujo(client, insert_item):
@@ -176,10 +195,10 @@ def test_pending_confirmation_flujo(client, insert_item):
 
     patch_response = client.patch(
         f"/api/v1/domains/games/ratings/{rating_id}",
-        json={"device_id": device_id, "status": "known_liked"},
+        json={"device_id": device_id, "status": "rejected"},
     )
     assert patch_response.status_code == 200
-    assert patch_response.get_json()["status"] == "known_liked"
+    assert patch_response.get_json()["status"] == "rejected"
 
     pending_after = client.get(
         f"/api/v1/domains/games/pending-confirmation?device_id={device_id}"

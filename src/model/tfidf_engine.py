@@ -48,10 +48,13 @@ DEFAULT_SHARED_TERMS = 8
 # documento sintético que representa el perfil declarado (ver _build_explicit_text).
 EXPLICIT_PREFERENCE_REPEAT_FACTOR = 3
 
-# Techo del nº de señales fuertes (known_liked/known_disliked) a partir del cual el
-# peso se desplaza por completo hacia el vector implícito — ver docs/ARCHITECTURE.md
-# sección 9 ("w_explicit = max(0.1, 1 - swipes/50)").
-STRONG_SIGNAL_SHRINKAGE_CEILING = 50
+# Techo del nº total de ratings a partir del cual el peso se desplaza por completo
+# hacia el vector implícito — ver docs/ARCHITECTURE.md sección 9 ("w_explicit =
+# max(0.1, 1 - total_ratings/50)"). Antes se basaba en un subconjunto de señales
+# "fuertes" (known_liked/known_disliked); ese concepto se retiró del modelo de
+# señales (decisión de producto: solo interested/rejected), el mecanismo de
+# shrinkage en sí no cambió, solo qué cuenta como señal.
+TOTAL_RATINGS_SHRINKAGE_CEILING = 50
 MIN_EXPLICIT_WEIGHT = 0.1
 
 
@@ -79,13 +82,13 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         catalog: list[Item],
         top_n: int,
         explicit_preferences: list[tuple[str, float]] | None = None,
-        strong_signal_count: int = 0,
+        total_ratings: int = 0,
     ) -> list[tuple[Item, float]]:
         scored = self._score_catalog(
             rated_items,
             catalog,
             explicit_preferences=explicit_preferences,
-            strong_signal_count=strong_signal_count,
+            total_ratings=total_ratings,
         )
         scored.sort(key=lambda entry: entry.final_score, reverse=True)
         return [(entry.item, entry.final_score) for entry in scored[:top_n]]
@@ -96,14 +99,21 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         catalog: list[Item],
         top_n: int,
         shared_terms: int = DEFAULT_SHARED_TERMS,
+        total_ratings: int = 0,
     ) -> list[ScoredItem]:
         """Como recommend(), pero desglosando similarity_score/community_score y los
         términos TF-IDF que cada recomendación comparte con el perfil (uso: --debug en
         recommend.py). Trata cada ítem de liked_items como señal positiva de peso 1.0
         — recommend.py todavía no tiene concepto de señales negativas ni de
-        preferencias explícitas."""
+        preferencias explícitas; si se pasa total_ratings, también aplica el mismo
+        shrinkage por volumen de ratings que recommend()."""
         rated_items = [(item, 1.0) for item in liked_items]
-        scored = self._score_catalog(rated_items, catalog, shared_terms=shared_terms)
+        scored = self._score_catalog(
+            rated_items,
+            catalog,
+            shared_terms=shared_terms,
+            total_ratings=total_ratings,
+        )
         scored.sort(key=lambda entry: entry.final_score, reverse=True)
         return scored[:top_n]
 
@@ -113,7 +123,7 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         catalog: list[Item],
         shared_terms: int | None = None,
         explicit_preferences: list[tuple[str, float]] | None = None,
-        strong_signal_count: int = 0,
+        total_ratings: int = 0,
     ) -> list[ScoredItem]:
         if not rated_items:
             raise ValueError("rated_items no puede estar vacío")
@@ -208,7 +218,7 @@ class TFIDFRecommendationEngine(RecommendationEngine):
             explicit_vector = latent_matrix[explicit_row_index : explicit_row_index + 1]
             w_explicit = max(
                 MIN_EXPLICIT_WEIGHT,
-                1 - strong_signal_count / STRONG_SIGNAL_SHRINKAGE_CEILING,
+                1 - total_ratings / TOTAL_RATINGS_SHRINKAGE_CEILING,
             )
             w_implicit = 1 - w_explicit
             profile_vector = w_implicit * implicit_vector + w_explicit * explicit_vector
@@ -219,7 +229,7 @@ class TFIDFRecommendationEngine(RecommendationEngine):
                     "event": "explicit_preferences_shrinkage",
                     "w_implicit": w_implicit,
                     "w_explicit": w_explicit,
-                    "strong_signal_count": strong_signal_count,
+                    "total_ratings": total_ratings,
                 },
             )
         else:

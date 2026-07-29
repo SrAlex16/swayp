@@ -76,16 +76,16 @@ def test_update_status_actualiza_updated_at(user_and_item):
     # de verdad para que updated_at cambie de forma observable como string.
     time.sleep(1.1)
 
-    updated = rating_repository.update_status(created.id, "known_liked")
+    updated = rating_repository.update_status(created.id, "rejected")
 
     assert updated is not None
-    assert updated.status == "known_liked"
+    assert updated.status == "rejected"
     assert updated.updated_at != created.updated_at
     assert updated.created_at == created.created_at
 
 
 def test_update_status_id_inexistente_devuelve_none(items_table):
-    assert rating_repository.update_status(999999, "known_liked") is None
+    assert rating_repository.update_status(999999, "rejected") is None
 
 
 def test_get_by_user_and_item_existente(user_and_item):

@@ -15,14 +15,8 @@ from src.repositories import (
 logger = logging.getLogger(__name__)
 
 # Todos los status posibles de un rating (ver docs/ARCHITECTURE.md sección 9,
-# signal_weights) — se reportan siempre en el desglose de logging, aunque esta fase
-# solo produzca interested/rejected a través de la API.
-KNOWN_SIGNAL_STATUSES = ("interested", "rejected", "known_liked", "known_disliked")
-
-# Señales "fuertes" para el cálculo de shrinkage (ver docs/ARCHITECTURE.md sección 9 y
-# TFIDFRecommendationEngine.recommend): known_liked/known_disliked, no interested
-# (que es una señal débil, ver signal_weights).
-STRONG_SIGNAL_STATUSES = ("known_liked", "known_disliked")
+# signal_weights) — se reportan siempre en el desglose de logging.
+KNOWN_SIGNAL_STATUSES = ("interested", "rejected")
 
 
 def generate_recommendations(
@@ -42,9 +36,10 @@ def generate_recommendations(
     if not ratings:
         raise ValidationError("El usuario no tiene ratings en este dominio todavía")
 
-    strong_signal_count = sum(
-        1 for rating in ratings if rating.status in STRONG_SIGNAL_STATUSES
-    )
+    # Base del shrinkage (ver docs/ARCHITECTURE.md sección 9): el total de ratings
+    # del usuario en este dominio, no un subconjunto de señales "fuertes" — ese
+    # concepto (known_liked/known_disliked) se retiró del modelo de señales.
+    total_ratings = len(ratings)
 
     signal_weights = signal_weight_repository.get_all()
 
@@ -96,7 +91,7 @@ def generate_recommendations(
         catalog,
         top_n,
         explicit_preferences=explicit_preferences,
-        strong_signal_count=strong_signal_count,
+        total_ratings=total_ratings,
     )
 
     logger.info(
@@ -113,7 +108,7 @@ def generate_recommendations(
                 status: status_counts.get(status, 0) for status in KNOWN_SIGNAL_STATUSES
             },
             "explicit_preferences_count": len(explicit_preferences),
-            "strong_signal_count": strong_signal_count,
+            "total_ratings": total_ratings,
         },
     )
 

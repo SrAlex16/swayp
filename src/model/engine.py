@@ -14,7 +14,7 @@ class RecommendationEngine(ABC):
         catalog: list[Item],
         top_n: int,
         explicit_preferences: list[tuple[str, float]] | None = None,
-        strong_signal_count: int = 0,
+        total_ratings: int = 0,
     ) -> list[tuple[Item, float]]:
         """Devuelve hasta top_n pares (Item, score) del catalog, excluyendo cualquier
         ítem presente en rated_items.
@@ -31,12 +31,12 @@ class RecommendationEngine(ABC):
         sección 9. Son opcionales: si no se pasan, el comportamiento debe ser idéntico
         al de un motor sin concepto de preferencias explícitas.
 
-        strong_signal_count es el nº de señales "fuertes" (known_liked/known_disliked)
-        que el usuario acumula en este dominio. Junto con explicit_preferences resuelve
-        el shrinkage con pocos datos (ver ARCHITECTURE.md sección 9 y la nota empírica
-        añadida allí): con pocas señales fuertes, el perfil debe apoyarse más en las
-        preferencias declaradas explícitamente y menos en el vector implícito (que con
-        pocos ratings puede quedar dominado por una sola señal, ej. un rechazo);
-        conforme crecen las señales fuertes, el peso se desplaza hacia el implícito.
+        total_ratings es el número total de ratings del usuario en este dominio.
+        Junto con explicit_preferences resuelve el shrinkage con pocos datos (ver
+        ARCHITECTURE.md sección 9 y la nota empírica añadida allí): con pocos
+        ratings, el perfil debe apoyarse más en las preferencias declaradas
+        explícitamente y menos en el vector implícito (que con pocos ratings puede
+        quedar dominado por una sola señal, ej. un rechazo); conforme crecen los
+        ratings, el peso se desplaza hacia el implícito.
         """
         raise NotImplementedError

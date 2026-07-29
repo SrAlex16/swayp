@@ -1,131 +1,43 @@
-# To-do — corto plazo (Fase 0: validar el motor sin API ni Flutter)
+# To-do — estado actual del proyecto
 
-- [x] Definir el modelo `Item` (dataclass/pydantic)
-- [x] Implementar `base_adapter.py` (interfaz) y un primer adapter real
-- [x] Esquema mínimo de SQLite para `items` (solo lo necesario para esta fase)
-- [x] Construir `text_for_vectorization` en el adapter elegido
-- [x] Implementar `TFIDFRecommendationEngine` (interfaz `RecommendationEngine` + primera implementación)
-- [x] Script `recommend.py` de terminal: usuario de prueba con gustos declarados → top N recomendaciones legibles
-- [x] Validar manualmente con 2-3 perfiles de prueba distintos si las recomendaciones tienen sentido
-- [x] Decidir si hace falta enriquecer más los datos antes de pasar a la Fase 1 (decidido: no enriquecer más sobre este catálogo de prueba — ver docs/fase0-validacion.md, veredicto final)
+Este documento recoge el estado real del backend y la ruta de trabajo más reciente. La documentación anterior mezclaba fases históricas con ideas futuras; aquí se deja una vista más útil para el trabajo actual.
 
-**Fase 0 completada.** Próxima fase: Fase 1 (API mínima sobre el dominio de videojuegos) — ver docs/ARCHITECTURE.md, sección Roadmap.
+## Estado de implementación
 
-## Fase 1: API mínima sobre el dominio de videojuegos
+### Backend Python
+- [x] Motor de recomendación TF-IDF + SVD implementado y validado.
+- [x] API REST con dominios, seed, ratings, jobs, preferencias, perfil y blacklist.
+- [x] Modelo de señales simplificado a dos estados: `interested` y `rejected`.
+- [x] Estado neutral `skipped` para omitir tarjetas sin convertirlas en señal positiva o negativa.
+- [x] Shrinkage basado en el total de ratings del usuario por dominio, con la fórmula $w_{explicit} = \max(0.1, 1 - total\_ratings/50)$.
+- [x] Suite de tests backend completa en verde.
 
-- [x] Esquema de BD ampliado (`users`, `ratings`, `jobs`) sin tocar `items` (`src/core/db.py`)
-- [x] `core/` — config centralizada, conexión SQLite, logging estructurado en JSON, jerarquía de errores
-- [x] `repositories/` — user, item, rating, job
-- [x] Job asíncrono de generación de recomendaciones (`job_service` + `recommendation_service`, hilo en background) con endpoints `POST /domains/<domain_code>/recommendations/jobs` y `GET /jobs/<job_id>`
-- [x] Endpoint `POST /domains/<domain_code>/ratings` (señal simple interested/rejected, sin known_liked/known_disliked todavía — ver Fase 3)
-- [x] Endpoint `GET /domains/<domain_code>/seed` (muestreo aleatorio simple; estratificación por género pendiente, ver docs/ROADMAP.md)
-- [x] Probar el flujo completo (seed → ratings → job → resultado) contra el servidor Flask real antes de dar la Fase 1 por cerrada (confirmado con curl end-to-end, incluidos los casos de error)
+### Frontend Flutter
+- [x] Rebranding a Swayp completado.
+- [x] Proyecto Flutter arrancando con dependencias base y build real de Android.
+- [ ] Arquitectura de carpetas y pantallas reales aún pendiente de implementar.
 
-**Fase 1 completada.**
+## Progreso verificado
 
-## Fase 2: segundo dominio (películas, TMDB)
+### Backend
+- [x] Endpoint de ratings acepta `interested`, `rejected` y `skipped`.
+- [x] `GET /api/v1/domains/<domain_code>/pending-confirmation` sigue devolviendo los ratings `interested` para la lista de Guardados.
+- [x] Recomendaciones se calculan con shrinkage por volumen de ratings.
+- [x] Tests de integración y unitarios ejecutados con éxito.
 
-- [x] Inspección de datos reales de TMDB antes de construir el adapter (script temporal, borrado tras la inspección — ver docs/decisions/0003-normalizacion-de-tags-heterogeneos.md)
-- [x] `TmdbAdapter` (`src/adapters/tmdb_adapter.py`), dominio "movies"
-- [x] `--domain` en `scripts/populate_catalog.py` y `recommend.py` (default "games", sin romper el comportamiento existente)
-- [x] Validado sin tocar `src/model/`, `src/api/`, `src/services/` — confirma que la arquitectura es extensible de verdad, no solo en el diseño
-- [x] Validación manual con 2 perfiles de gustos de cine bien distintos (familia/animación vs. terror) — ambos coherentes y sin mezclarse
+### CI/CD
+- [x] Workflow de backend CI configurado para lint, formato y tests.
 
-**Fase 2 completada.**
+## Trabajo pendiente prioritario
 
-## Instrumentación de logging (transversal, no ligada a una fase del roadmap)
+1. Implementar la capa de frontend real sobre la API existente.
+2. Definir la arquitectura de carpetas Flutter (`core`, `data`, `domain`, `features`).
+3. Conectar la pantalla de swipe con los endpoints de seed, ratings y recomendaciones.
+4. Implementar la pantalla de Guardados y el perfil real sobre el backend actual.
+5. Revisar la documentación de producto y la UI cuando el frontend avance.
 
-- [x] Logs en todas las capas (adapters, servicios, repositories, nivel HTTP) — antes solo `job_service.py` tenía cobertura real
-- [x] `request_completed` en `after_request` (método, ruta, status, `duration_ms`) para toda request que se complete, incluida la vía de excepción no controlada
-- [x] `errorhandler(Exception)` genérico — antes una excepción no controlada rompía el contrato "siempre JSON" de la API
-- [x] Rotación de archivos (`TimedRotatingFileHandler`) + retención configurable por `.env`, sin necesidad de un job de limpieza aparte
-- [x] `.env.example` con las 7 variables de entorno del proyecto
+## Notas de producto
 
-**Próxima decisión pendiente**: filtros (`domain_facets`), perfil de usuario, o completar el modelo de señales (`known_liked`/`known_disliked`, toggle 'ya lo conozco') — ver docs/ARCHITECTURE.md, secciones 7-9.
-
-## Modelo de señales — capa de API
-
-- [x] `POST /domains/<domain_code>/ratings` acepta los 4 status (`interested`, `rejected`, `known_liked`, `known_disliked`), no solo los 2 de la Fase 1
-- [x] `PATCH /domains/<domain_code>/ratings/<rating_id>` para actualizar el status de un rating existente (flujo de confirmación de la pantalla de Guardados, ARCHITECTURE.md sección 7.3)
-- [x] `GET /domains/<domain_code>/pending-confirmation` — ratings `interested` sin confirmar, con datos del item para listarlos directamente
-- [x] `rating_repository`: `get_by_id`, `get_by_status`, `update_status`
-- [x] Validado con curl end-to-end: alta directa en `known_liked`, alta `interested`, aparece en pendientes, `PATCH` a `known_liked`, desaparece de pendientes, y los 2 casos de error (rating inexistente, status inválido)
-
-## Perfil de usuario — capa de API
-
-- [x] `GET /users/profile` — perfil vacío es 200 con `{age: null, gender: null}`, no 404
-- [x] `PUT /users/profile` — valida `age` (1-120 si viene), `gender` libre sin validar
-- [x] `GET /users/domains/<domain_code>/preferences` — lista vacía si no hay ninguna, no 404
-- [x] `PUT /users/domains/<domain_code>/preferences` — reemplaza todas las preferencias del dominio, valida `weight` (0-1)
-- [x] Validado con curl end-to-end: perfil nuevo, actualización válida, `age` inválido, preferencias vacías, alta, reemplazo completo (confirmado que no se acumulan), y una recomendación real que refleja `strong_signal_count` y preferencias explícitas en el log
-
-## Registro de dominios
-
-- [x] Tabla `domains` (código, nombre, habilitado) — qué dominios existen, capa de producto/BD
-- [x] `src/adapters/registry.py` — qué adapter de Python implementa cada dominio, capa de código; `domain_repository.py` no importa nada de `src/adapters/` y viceversa
-- [x] `scripts/populate_catalog.py` usa el registry en vez de su propio diccionario local (comportamiento sin cambios)
-- [x] `GET /domains` — lista de dominios habilitados
-- [x] Validación de `domain_code` centralizada (`src/api/routes/_shared.py`) y aplicada en las 4 rutas que reciben `<domain_code>` en la URL (jobs, ratings, seed, preferences) — un dominio inexistente ahora da 404 en vez de seguir silenciosamente con un catálogo vacío
-- [x] Validado con curl: `GET /domains` devuelve games+movies, `seed` de un dominio real sigue igual, `seed` de un dominio inventado da 404, `populate_catalog.py` sin `--domain` sigue funcionando igual tras el refactor
-
-## CI/CD
-
-- [x] `ruff` añadido a `requirements.txt`; `ruff.toml` con solo exclusiones de código no activo (`legacy_reference/`, `venv/`, `.venv/`, `data/`, `logs/`, `notebooks/`)
-- [x] Decisión tomada: conjunto de reglas por defecto de ruff (E4/E7/E9 + F), sin reglas de estilo adicionales por ahora — ver docs/decisions/0005-conjunto-de-reglas-de-ruff.md
-- [x] Código formateado con `ruff format .` (29 archivos reformateados); confirmado con `pytest -v` que el formateo no cambió comportamiento (44/44 tests siguen pasando)
-- [x] `.github/workflows/backend-ci.yml` — lint (`ruff check`) + formato (`ruff format --check`) + tests (`pytest -v`) en cada push/PR a `main`
-
-## Undo del swipe — capa de API (docs/ARCHITECTURE.md sección 11)
-
-- [x] `rating_repository.delete(rating_id)` — `DELETE FROM ratings WHERE id = ?`, devuelve `True`/`False` según si borró una fila
-- [x] `DELETE /domains/<domain_code>/ratings/<rating_id>?device_id=...` — mismo patrón de ownership que el `PATCH` ya existente (404 tanto si no existe como si es de otro `device_id`/dominio, para no revelar la existencia de un rating ajeno); responde `204` sin body
-- [x] Tests de repository (`delete` existente devuelve `True` y la fila desaparece; `delete` inexistente devuelve `False`) y de integración vía `app.test_client()` (borrar un rating propio da `204` y desaparece de `pending-confirmation`; borrar el de otro `device_id` da `404`); caso también añadido al test parametrizado de "dominio inexistente da 404 en todas las rutas"
-- [x] Suite completa: 63 tests, `pytest -v` en verde
-
-**Diseñado en su momento (sección 11 de ARCHITECTURE.md) pero nunca implementado hasta ahora.** El consumo desde Flutter (botón/gesto de "volver atrás" en Descubrir) queda para un bloque de frontend futuro — este bloque es solo el endpoint.
-
-## Blacklist dura — capa de API (docs/ARCHITECTURE.md sección 3.3)
-
-- [x] Tabla `blacklist` (`user_id, item_id, domain_code, created_at`, `PRIMARY KEY (user_id, item_id)`) añadida a `src/core/db.py`, idempotente como el resto del esquema
-- [x] `blacklist_repository`: `add(user_id, item_id, domain_code)` idempotente (`INSERT OR IGNORE`, no falla ni duplica en un segundo `add` del mismo par) y `get_item_ids(user_id, domain_code) -> set[int]`
-- [x] `POST /domains/<domain_code>/blacklist` — valida dominio y que el item exista en ese dominio, resuelve/crea el usuario, responde `201`
-- [x] Exclusión aplicada en `seed_routes.py` (junto a los ya valorados) y en `recommendation_service.py` (filtrando el catálogo antes de puntuar) — mismo patrón de exclusión en ambos sitios
-- [x] Tests de repository (`add` idempotente, `get_item_ids` filtra por dominio) y de integración (blacklistear un item real y confirmar que no aparece ni en `/seed` ni en el resultado de un job de recomendaciones); caso también añadido al test parametrizado de "dominio inexistente da 404 en todas las rutas"
-- [x] Suite completa: 69 tests, `pytest -v` en verde
-
-**Distinta de `ratings.status='rejected'` a propósito:** el rechazo es señal de entrenamiento (pesa en el perfil, sección 9), la blacklist es exclusión permanente sin peso en el modelo — "no me lo vuelvas a enseñar nunca", no "no me gustó esto". Diseñada en su momento (sección 3.3) pero la tabla nunca se llegó a crear hasta ahora.
-
-## Testing (docs/ARCHITECTURE.md sección 5)
-
-- [x] Infraestructura de pytest (`pytest.ini`, `tests/conftest.py`): fixture `temp_db` (BD SQLite aislada en `tmp_path`, valida el seed de `domains`/`signal_weights` en cada test) y `sample_items` (10 items sintéticos para el motor)
-- [x] Tests del motor de recomendación (`tests/model/test_tfidf_engine.py`): señales positivas/negativas, fallback de peso cero, exclusión de items ya valorados, shrinkage con y sin preferencias explícitas, `top_n`, lista de ratings vacía
-- [x] Contract tests de adapters (`tests/adapters/`, RAWG + TMDB, vía `requests_mock`): normalización de `community_score`, `TAG_DENYLIST`, `adapter_version`/`enrichment_version`, manejo de fallos de la API externa sin reventar
-- [x] Tests de repositories (`tests/repositories/`, los 8 repos): incluye el hallazgo del `UNIQUE(user_id, item_id)` sin manejar en `rating_repository.create()`, resuelto con `ConflictError` + `get_by_user_and_item` en la capa de API
-- [x] Tests de integración de API (`tests/integration/test_full_flow.py`) vía `app.test_client()` de Flask contra `temp_db`: flujo completo seed→ratings→job→resultado, 404 en las 4 rutas con `domain_code` inválido, idempotencia y conflicto de ratings duplicados, flujo de pending-confirmation, perfil y preferencias (incluido el reemplazo total, no fusión), job inexistente, y `X-Request-Id` presente en toda respuesta
-- [x] Suite completa: 58 tests, `pytest -v` en verde
-
-**Suite de testing completa.** Cubre motor, adapters, repositories y API de punta a punta.
-
-## Frontend Flutter — fundamentos (docs/ARCHITECTURE.md secciones 4 y 7)
-
-- [x] `frontend/anime_recommender_app/` renombrado a `frontend/swayp/` (`git mv`, conserva historial); `android/`, `ios/`, `web/`, `linux/`, `windows/`, `macos/` siguen ahí y compilaban
-- [x] `pubspec.yaml`: `name: swayp`, descripción real del proyecto; dependencias nuevas añadidas con `flutter pub add` (versión estable más reciente resuelta por pub.dev, no inventada): `flutter_riverpod` 3.4.1, `dio` 5.11.0, `go_router` 17.3.0, `sqflite` 2.4.3, `uuid` 4.6.0, `flutter_local_notifications` 22.2.0 (requirió subir `http` de 0.13.6 a 1.6.0, sin uso real en el código todavía — `lib/` estaba vacío); `shared_preferences` sin tocar, ya estaba al día
-- [x] `applicationId`/`namespace` de Android y `PRODUCT_BUNDLE_IDENTIFIER` de iOS actualizados a `com.sralex16.swayp` (antes `com.example.anime_recommender_app` / `com.example.animeRecommenderApp`; corregido de `com.srAlex16.swayp` a todo minúsculas, la mayúscula no sigue la convención de package names de Android). De paso, mismo id aplicado a macOS y nombres de binario/ventana en Linux y Windows (quedaban con el nombre viejo, se detectó al compilar para Linux)
-- [x] `lib/main.dart` mínimo: `MaterialApp` envuelto en `ProviderScope` (Riverpod), `Scaffold` con el texto "Swayp" centrado — solo para validar que compila con el rebranding y las dependencias nuevas, sin arquitectura todavía (eso son los siguientes bloques)
-- [x] `flutter pub get` y `flutter analyze` sin errores ni warnings
-- [x] `flutter build linux --debug` compila y corre; `flutter test` pasa (smoke test a juego con el nuevo `main.dart`)
-- [x] Plataforma Android regenerada con `flutter create --platforms=android --org com.sralex16 .` (herramienta oficial, no edición manual de versiones): sustituye los `build.gradle`/`settings.gradle` Groovy heredados (Gradle 7.5 / AGP 7.3.0 / Kotlin 1.7.10, incompatibles con el tooling de Flutter 3.44.7) por Kotlin DSL (`.kts`) con Gradle 9.1.0, ya compatibles. Requirió limpiar a mano el `gradle-wrapper.properties`/`.jar` viejo y el `gradle.properties` con flags inyectados por un intento de build fallido previo (ambos quedaban fuera del alcance de la regeneración porque estaban gitignored y `flutter create` no sobreescribe lo que ya existe en disco) antes de que la regeneración tomara efecto de verdad; también se eliminaron los `.gradle`/`MainActivity.kt` duplicados del `applicationId` antiguo que la regeneración dejó conviviendo junto a los nuevos. Un único ajuste manual necesario tras la regeneración: `core library desugaring` habilitado en `app/build.gradle.kts` (`isCoreLibraryDesugaringEnabled = true` + `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")`), requisito estándar y documentado de `flutter_local_notifications`, no relacionado con el desfase de Gradle
-- [x] `flutter build apk --debug` compila (`✓ Built build/app/outputs/flutter-apk/app-debug.apk`); `flutter analyze` y `flutter test` repetidos tras la regeneración, ambos siguen en verde
-
-**Fundamentos del frontend completados** (rebranding + dependencias + arranque mínimo confirmado, con build de Android real funcionando). Próximo bloque: arquitectura de carpetas (`core/`, `domain/`, `data/`, `features/`) siguiendo docs/ARCHITECTURE.md sección 4.2.
-
-## Nuevas ideas (añadir o completar con las que ya tenemos)
-- [x] Que se puedan eliminar obras de la lista de guardados sin que afecte al modelo. Por ejemplo si le he dado like sin querer
-- [x] Quitar opción "Ya lo conozco". Más simple, si algo me gusta o me puede gustar le doy like (independientemente de si lo conozco) si no, le doy que no me interesa
-- [x] Cuando añadimos a la blocklist tenemos que sacar un aviso diciendo que no se volverán a recomendar películas de esa saga en concreto, y modificar la funcionlaidad del botón para que haga eso mismo, no volver a recomendar ni esa obra ni ninguna de esa saga
-- [x] Más variedad en películas
-- [x] botón en perfil para poder resetear el algoritmo manteniendo las obras guardadas
-- [x] botón para omitir recomendación. No es like ni rechazo, simplemente omite esa obra y pasa a la siguiente (la obra omitida puede volver a salir)
-- [x] no recomendar ediciones especiales del mismo juego (ej: me recomienda skyrim, y luego skyrim special edition). Aquí el problema está en como diferenciar obras que son radicalmente diferentes aunque técnicamente sean la misma (ej ff7 y ff7 remake pt1, pt2...) En este caso sí que habría que recomendarlo, pero en casos en los que, por ejemplo (tlou 1 y tlou 1 remake) sí que no hay diferencia prácticamente en ambos, por lo que simplemente habría que recomendar una (a ser posible la úlitma que haya salido siempre). En juegos en los que tenemos varias partes también (como el final 7 remake) o bien recomendamos el juego completo, o bien la primera parte (o recomendamos cada parte como juegos diferentes, realmente esto no sé como sería mejor hacerlo). Podríamos fijarnos en la fecha de lanzamiento a la hora de recomendar juegos. Por ejemplo en casos de Tomb Raider, hay que diferenciar entre el primero de la PSX del de la saga de Crystal Dinamycs. Habría que recomendar ambos pero se llaman igual, por lo que los diferenciamos fijándonos en las fechas de lanzamiento.
-- [x] en la lista de guardados, ponerle una marca sutil a las obras nuevas que se acaban de añadir. Esta marca debe desaparecer cuando salga de la pantalla de guardados
-- [x] poder variar el orden en el que se guardan las obras (orden alfabético o recientemente añadidos)
+- La decisión de producto actual es mantener un modelo de señales simple y explícito para el usuario: aceptar/rechazar/omitir.
+- Guardados sigue siendo una vista simple de `interested`; no existe un flujo de confirmación posterior.
+- El estado `skipped` sirve para avanzar sin introducir ruido en el perfil de recomendación.

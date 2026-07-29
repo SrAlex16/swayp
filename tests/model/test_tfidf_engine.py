@@ -140,13 +140,13 @@ def test_shrinkage_sin_preferencias_explicitas_no_cambia_nada(
     assert without_kwarg == with_explicit_none
 
 
-def test_shrinkage_con_cero_senales_fuertes_usa_preferencia_explicita(
+def test_shrinkage_con_cero_total_ratings_usa_preferencia_explicita(
     engine, sample_items, items_by_id
 ):
     """Replica la prueba manual real del Bloque 2 de perfil: rated_items normales
     (dark-fantasy) + explicit_preferences hacia el tag de la familia puzzle/indie +
-    strong_signal_count=0 (w_explicit=1.0: el vector de perfil se apoya al 100% en
-    lo declarado). El resultado debe favorecer la familia puzzle/indie por encima de
+    total_ratings=0 (w_explicit=1.0: el vector de perfil se apoya al 100% en lo
+    declarado). El resultado debe favorecer la familia puzzle/indie por encima de
     dark-fantasy, invirtiendo lo que darían las señales implícitas solas."""
     rated_items = [(items_by_id["df-1"], 0.3), (items_by_id["df-2"], 0.3)]
 
@@ -155,7 +155,7 @@ def test_shrinkage_con_cero_senales_fuertes_usa_preferencia_explicita(
         sample_items,
         top_n=4,
         explicit_preferences=[("Puzzle", 1.0)],
-        strong_signal_count=0,
+        total_ratings=0,
     )
 
     top_4_ids = {item.external_id for item, _ in recommendations}

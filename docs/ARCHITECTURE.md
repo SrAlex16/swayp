@@ -157,20 +157,20 @@ CREATE TABLE item_images (
 -- Pesos de cada tipo de señal para el scoring híbrido (sección 9), editables
 -- sin migrar nada
 CREATE TABLE signal_weights (
-  status TEXT PRIMARY KEY,         -- 'rejected' | 'interested' | 'known_liked' | 'known_disliked'
+  status TEXT PRIMARY KEY,         -- 'rejected' | 'interested'
   weight REAL NOT NULL
 );
--- seed inicial: rejected=-1.0, interested=0.3, known_liked=1.0, known_disliked=-1.0
+-- seed inicial: rejected=-1.0, interested=0.3
 
 CREATE TABLE ratings (
   id INTEGER PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),
   item_id INTEGER NOT NULL REFERENCES items(id),
   domain_code TEXT NOT NULL REFERENCES domains(code),
-  status TEXT NOT NULL,            -- 'rejected' | 'interested' | 'known_liked' | 'known_disliked'
-  source TEXT NOT NULL,            -- 'onboarding' | 'feedback' | 'saved_confirmation'
+  status TEXT NOT NULL,            -- 'rejected' | 'interested'
+  source TEXT NOT NULL,            -- 'onboarding' | 'feedback'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- se actualiza al confirmar desde Guardados
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, item_id)
 );
 
@@ -260,7 +260,7 @@ CREATE TABLE user_explicit_preferences (
 
 Notas:
 - `items` actúa como caché: los adapters solo se llaman cuando hace falta refrescar el catálogo de un dominio (job programado o manual), no en cada petición de recomendación.
-- `ratings.status` + `signal_weights` sustituye a un simple score -1/+1: permite distinguir interés (aceptar sin conocer) de gusto confirmado (aceptar conociendo, o confirmado luego desde Guardados) sin cambiar el esquema si se afinan los pesos — ver sección 9 y sección 7.3.
+- `ratings.status` + `signal_weights` sustituye a un simple score -1/+1: permite distinguir interés (`interested`) de rechazo (`rejected`) y además soporta un estado neutral `skipped` para avanzar sin entrenar el perfil — ver sección 9 y sección 7.3.
 - `ratings` es también el registro de swipes: cada swipe derecha/izquierda es un insert aquí. El botón "volver atrás" hace un `DELETE` de la última fila (ver sección 10).
 
 ### 3.4 Contrato de la API
@@ -275,7 +275,7 @@ GET  /api/v1/domains/{domain}/seed?user_id=X&count=20
      → ítems para onboarding (excluye ya puntuados)
 
 POST /api/v1/domains/{domain}/ratings
-     body: {user_id, item_id, status}   # status: 'rejected' | 'interested' | 'known_liked' | 'known_disliked'
+     body: {user_id, item_id, status}   # status: 'rejected' | 'interested' | 'skipped'
      → 201 { rating }
 
 POST /api/v1/domains/{domain}/recommendations/jobs
@@ -471,7 +471,7 @@ Es la pantalla principal, y hace doble función: onboarding (primera vez en un d
 
 **Componentes:**
 - Card stack en primer plano con gestos de swipe. **Contenido en primer plano** (visible sin tocar nada): carrusel de imágenes (`item_images`) a pantalla casi completa, y overlay inferior con título, año y 1-2 badges (género principal, subtipo si aplica) — lo mínimo para decidir en un vistazo. **Contenido expandible** (tap en la carta, no swipe): sinopsis completa, todos los géneros/tags, score de comunidad. El tap queda libre para quien quiere más info antes de decidir, sin interferir con el gesto de swipe.
-- Toggle discreto **"Ya lo conozco"** en la propia tarjeta: si el usuario lo activa antes de decidir, el swipe deja de significar "interés" y pasa a pedir una respuesta directa de gusto (me gustó / no me gustó) en vez de "quiero verlo". Resuelve con fricción mínima el caso de que aparezca algo que el usuario ya ha consumido (sección 7.3 lo trata en detalle).
+- El swipe sigue siendo un gesto de decisión simple: aceptar/rechazar/omitir. El estado `skipped` permite pasar a la siguiente tarjeta sin entrenar el perfil, mientras que la lista de Guardados se alimenta únicamente de los ratings `interested`.
 - Botones espejo de los gestos (rechazar / aceptar / volver atrás) — no solo por accesibilidad, también porque si en algún momento la app corre en web/desktop (útil para la entrega del curso), el gesto de swipe no siempre está disponible.
 - Icono de filtro → panel de filtros, generado dinámicamente a partir de `GET /domains/{domain}/filters` (sección 8). Pendiente de implementar; coexiste con el icono de menú (párrafo anterior), que es un icono distinto.
 
@@ -494,7 +494,7 @@ Esto también hace la app tolerante a conexión intermitente, algo nada trivial 
 
 ### 7.3 Pantalla de Guardados
 
-Lista de ítems con `status = 'interested'` (aceptados sin marcar "ya lo conozco"). Cada tarjeta de esta lista tiene la pregunta de confirmación ("¿ya lo has visto/jugado?" → si sí, "¿te gustó?"), que al responderse actualiza el `status` a `known_liked`/`known_disliked` y dispara el reentreno de esa señal. No hace falta responder todas de golpe; es una lista viva que se va vaciando con el tiempo.
+Lista de ítems con `status = 'interested'` que el usuario ha guardado desde el swipe. Ya no existe un flujo de confirmación posterior: la lista es simplemente la colección de ratings `interested`, y el usuario puede vaciarla o quitar un elemento actualizando el rating a `rejected` o borrándolo directamente. La decisión de simplificar el producto se ha tomado explícitamente para reducir fricción y mantener el modelo de señales simple y explícito para el usuario.
 
 ---
 
@@ -528,9 +528,9 @@ score(item) = w_implicit · similitud_implicita(item, usuario)
             + w_community · score_comunidad_normalizado(item)
 ```
 
-- **`similitud_implicita`**: similitud coseno entre el vector TF-IDF del ítem y el vector de preferencia del usuario, construido a partir de sus `ratings` ponderados por `signal_weights` según su `status` (`rejected`/`interested`/`known_liked`/`known_disliked` — sección 7.1 y 8.3), y ponderando además más los swipes recientes que los antiguos (para que el gusto pueda "derivar" con el tiempo). **Shrinkage con pocos datos**: con menos de un mínimo de señales fuertes (ej. 5 `known_liked`/`known_disliked`), el vector implícito se atenúa hacia un vector neutro/general en vez de tomarse al pie de la letra — así 5 swipes casuales de RPG no hacen que el sistema asuma "100% RPG" solo porque fueron las primeras cartas que tocaron. Confirmado empíricamente durante la implementación del modelo de señales completo: con pesos por defecto (interested=0.3, rejected=-1.0), una sola señal rejected puede dominar el perfil frente a varias interested combinadas, produciendo un vector de perfil diluido/poco representativo con pocas señales totales. El shrinkage completo (atenuar hacia preferencias explícitas declaradas) queda pendiente de la funcionalidad de perfil de usuario, todavía no implementada — hasta entonces, este es un comportamiento conocido y esperado con usuarios de pocas señales, no un bug.
+- **`similitud_implicita`**: similitud coseno entre el vector TF-IDF del ítem y el vector de preferencia del usuario, construido a partir de sus `ratings` ponderados por `signal_weights` según su `status` (`rejected`/`interested`, y sin entrenar para `skipped`), y ponderando además más los swipes recientes que los antiguos (para que el gusto pueda "derivar" con el tiempo). **Shrinkage con pocos datos**: el peso de las preferencias explícitas se ajusta según el número total de ratings del usuario en ese dominio, no según un subconjunto de señales especiales: `w_explicit = max(0.1, 1 - total_ratings/50)`. Así, con pocos ratings el perfil se apoya más en lo declarado explícitamente y menos en el vector implícito; conforme crece el volumen de valoraciones, el peso se desplaza hacia el implícito. Esta simplificación de producto elimina el toggle de "ya lo conozco" y el flujo de confirmación de Guardados para mantener un modelo de señales más simple y explícito para el usuario.
 - **`coincidencia_preferencias_declaradas`**: si los valores de faceta del ítem intersectan con lo que el usuario marcó explícitamente en su perfil, pondera según el `weight` que puso. Estas preferencias declaradas, si se piden ya en el primer uso del dominio (no solo en ajustes de perfil), también sirven para **excluir géneros de la propia baraja semilla** — si el usuario dice que no le interesa el terror, ni siquiera se lo enseñes en el onboarding.
-- **Arranque en frío**: `w_explicit` empieza alto y `w_implicit` bajo cuando el usuario tiene pocos swipes en ese dominio; a medida que acumula swipes, los pesos se invierten (una función simple tipo `w_explicit = max(0.1, 1 - swipes/50)` es suficiente para el alcance del curso, no hace falta nada más sofisticado).
+- **Arranque en frío**: `w_explicit` empieza alto y `w_implicit` bajo cuando el usuario tiene pocos swipes en ese dominio; a medida que acumula swipes, los pesos se invierten (una función simple tipo `w_explicit = max(0.1, 1 - total_ratings/50)` es suficiente para el alcance del curso, no hace falta nada más sofisticado).
 - **`w_community` tiene techo fijo, nunca domina**: sin límite, un ítem con score de comunidad 9.4 siempre gana a uno con 7.1 aunque encaje peor con el usuario, y el sistema degenera en "recomendar siempre lo popular" — justo lo contrario de personalizar. Techo recomendado: `w_community` entre 0.10 y 0.20 del total, el resto repartido entre implícito y explícito.
 - **Edad**: se trata como **filtro duro**, no como parte de la puntuación — un ítem fuera del rango de edad ni siquiera entra en el conjunto de candidatos, no se le resta puntuación.
 - **Sexo**: aquí te doy una recomendación de diseño, no solo técnica. Yo **no lo usaría como señal de ponderación de gustos** por defecto. Dos razones, una técnica y una de fondo: (1) correlacionar sexo con género de contenido reproduce estereotipos estadísticos de la población en vez de reflejar el gusto real de esa persona concreta — y el swipe ya te da una señal de comportamiento mucho más fiable que cualquier proxy demográfico; (2) es el típico caso de "el sistema decide que a ella le gusta el romance y a él la acción" que además de ser menos preciso, es el tipo de sesgo que conviene evitar si puedes. Si quieres guardar el campo por otros motivos (estadísticas de uso, clasificación de contenido en algunas plataformas), guárdalo, pero no lo metas en la fórmula de scoring.
