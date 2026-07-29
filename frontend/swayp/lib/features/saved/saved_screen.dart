@@ -6,8 +6,9 @@ import '../../domain/models/pending_rating.dart';
 import 'saved_provider.dart';
 
 /// Pantalla de Guardados (docs/ARCHITECTURE.md sección 7.3): ratings
-/// `interested` pendientes de confirmar. Tocar una fila abre el flujo de
-/// confirmación en dos pasos ("¿ya lo has visto/jugado?" → "¿te gustó?").
+/// `interested` que el usuario ha guardado desde el swipe. Tocar una fila
+/// permite quitarla del listado cambiando el rating a `rejected` o
+/// eliminándolo con el botón de borrar.
 class SavedScreen extends ConsumerWidget {
   const SavedScreen({super.key});
 
@@ -23,7 +24,7 @@ class SavedScreen extends ConsumerWidget {
             _SavedError(error: error, onRetry: () => ref.invalidate(savedProvider)),
         data: (ratings) {
           if (ratings.isEmpty) {
-            return const Center(child: Text('No tienes nada pendiente de confirmar por ahora'));
+            return const Center(child: Text('No tienes nada guardado por ahora'));
           }
           return ListView.builder(
             itemCount: ratings.length,
@@ -35,7 +36,7 @@ class SavedScreen extends ConsumerWidget {
                 onTap: () => showModalBottomSheet<void>(
                   context: context,
                   showDragHandle: true,
-                  builder: (context) => _ConfirmationSheet(rating: rating),
+                  builder: (context) => _SavedActionsSheet(rating: rating),
                 ),
               );
             },
@@ -107,27 +108,14 @@ class _Thumbnail extends StatelessWidget {
   }
 }
 
-/// Flujo de confirmación en dos pasos (docs/ARCHITECTURE.md sección 7.3):
-/// primero si ya lo ha visto/jugado, y solo entonces si le gustó.
-class _ConfirmationSheet extends ConsumerStatefulWidget {
-  const _ConfirmationSheet({required this.rating});
+/// Acciones simples para un item guardado: rechazarlo o quitarlo del listado.
+class _SavedActionsSheet extends ConsumerWidget {
+  const _SavedActionsSheet({required this.rating});
 
   final PendingRating rating;
 
   @override
-  ConsumerState<_ConfirmationSheet> createState() => _ConfirmationSheetState();
-}
-
-class _ConfirmationSheetState extends ConsumerState<_ConfirmationSheet> {
-  bool _alreadySeen = false;
-
-  void _confirm(String status) {
-    ref.read(savedProvider.notifier).confirmItem(widget.rating.ratingId, status);
-    Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -135,55 +123,33 @@ class _ConfirmationSheetState extends ConsumerState<_ConfirmationSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              widget.rating.title,
+              rating.title,
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            if (!_alreadySeen) ..._seenStep() else ..._likedStep(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                OutlinedButton(
+                  onPressed: () {
+                    ref.read(savedProvider.notifier).updateItem(rating.ratingId, 'rejected');
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Rechazar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    ref.read(savedProvider.notifier).updateItem(rating.ratingId, 'rejected');
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Quitar'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
-  }
-
-  List<Widget> _seenStep() {
-    return [
-      const Text('¿Ya lo has visto/jugado?'),
-      const SizedBox(height: 16),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Todavía no'),
-          ),
-          FilledButton(
-            onPressed: () => setState(() => _alreadySeen = true),
-            child: const Text('Sí'),
-          ),
-        ],
-      ),
-    ];
-  }
-
-  List<Widget> _likedStep() {
-    return [
-      const Text('¿Te gustó?'),
-      const SizedBox(height: 16),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          OutlinedButton(
-            onPressed: () => _confirm('known_disliked'),
-            child: const Text('No'),
-          ),
-          FilledButton(
-            onPressed: () => _confirm('known_liked'),
-            child: const Text('Sí'),
-          ),
-        ],
-      ),
-    ];
   }
 }

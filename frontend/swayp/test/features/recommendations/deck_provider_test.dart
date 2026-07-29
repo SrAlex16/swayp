@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swayp/core/errors/app_exception.dart';
 import 'package:swayp/data/repositories/blacklist_repository.dart';
 import 'package:swayp/data/repositories/domain_repository.dart';
-import 'package:swayp/data/repositories/pending_confirmation_repository.dart';
+import 'package:swayp/data/repositories/saved_repository.dart';
 import 'package:swayp/data/repositories/ratings_repository.dart';
 import 'package:swayp/data/repositories/recommendations_repository.dart';
 import 'package:swayp/data/repositories/seed_repository.dart';
@@ -90,19 +90,19 @@ class _FakeBlacklistRepository extends BlacklistRepository {
   }
 }
 
-class _FakePendingConfirmationRepository extends PendingConfirmationRepository {
-  _FakePendingConfirmationRepository(super.ref);
+class _FakeSavedRepository extends SavedRepository {
+  _FakeSavedRepository(super.ref);
 
   int callCount = 0;
 
   @override
-  Future<List<PendingRating>> getPending(String domainCode) async {
+  Future<List<PendingRating>> getSavedRatings(String domainCode) async {
     callCount++;
     return const [];
   }
 
   @override
-  Future<void> confirm(String domainCode, int ratingId, String status) async {}
+  Future<void> updateRatingStatus(String domainCode, int ratingId, String status) async {}
 }
 
 /// Fuerza siempre "motor" como origen del siguiente lote, sin depender de
@@ -248,8 +248,8 @@ void main() {
           ]),
         ),
         ratingsRepositoryProvider.overrideWith((ref) => _FakeRatingsRepository(ref)),
-        pendingConfirmationRepositoryProvider.overrideWith(
-          (ref) => _FakePendingConfirmationRepository(ref),
+        savedRepositoryProvider.overrideWith(
+          (ref) => _FakeSavedRepository(ref),
         ),
       ],
     );
@@ -258,10 +258,10 @@ void main() {
     await container.read(deckProvider.future);
     await container.read(savedProvider.future);
 
-    final fakePending =
-        container.read(pendingConfirmationRepositoryProvider)
-            as _FakePendingConfirmationRepository;
-    expect(fakePending.callCount, 1);
+    final fakeSaved =
+        container.read(savedRepositoryProvider)
+            as _FakeSavedRepository;
+    expect(fakeSaved.callCount, 1);
 
     container.read(deckProvider.notifier).swipe(_item1, 'interested');
     // Deja correr el submit en segundo plano, cuya finalización con éxito
@@ -269,7 +269,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     await container.read(savedProvider.future);
-    expect(fakePending.callCount, 2);
+    expect(fakeSaved.callCount, 2);
   });
 
   test('undo() espera el POST en vuelo, borra el rating y reinserta el item', () async {
@@ -332,44 +332,37 @@ void main() {
     expect(container.read(canUndoProvider), false);
   });
 
-  test(
-    'con el toggle "ya lo conozco" activo, el swipe manda known_liked/known_disliked '
-    'y el toggle se resetea después',
-    () async {
-      final submitted = <_SubmittedRating>[];
-      final container = ProviderContainer(
-        overrides: [
-          domainsProvider.overrideWith((ref) => Future.value(const [_games])),
-          seedRepositoryProvider.overrideWith(
-            (ref) => _FakeSeedRepository(ref, const [
-              [_item1, _item2],
-            ]),
-          ),
-          ratingsRepositoryProvider.overrideWith(
-            (ref) => _FakeRatingsRepository(ref, onSubmit: submitted.add),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+  test('el swipe simple envía los estados reales del backend', () async {
+    final submitted = <_SubmittedRating>[];
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith(
+          (ref) => _FakeRatingsRepository(ref, onSubmit: submitted.add),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      await container.read(deckProvider.future);
-      container.read(alreadyKnownToggleProvider.notifier).toggle();
-      expect(container.read(alreadyKnownToggleProvider), true);
+    await container.read(deckProvider.future);
+    container.read(swipeModeProvider.notifier).set('skipped');
+    expect(container.read(swipeModeProvider), 'skipped');
 
-      container.read(deckProvider.notifier).swipe(_item1, 'interested', alreadyKnown: true);
-      await Future<void>.delayed(Duration.zero);
+    container.read(deckProvider.notifier).swipe(_item1, 'skipped');
+    await Future<void>.delayed(Duration.zero);
 
-      expect(submitted, [(domainCode: 'games', itemId: 1, status: 'known_liked')]);
-      // El toggle se resetea tras el swipe, no se queda pegado para la
-      // siguiente carta.
-      expect(container.read(alreadyKnownToggleProvider), false);
+    expect(submitted, [(domainCode: 'games', itemId: 1, status: 'skipped')]);
 
-      container.read(deckProvider.notifier).swipe(_item2, 'rejected');
-      await Future<void>.delayed(Duration.zero);
+    container.read(deckProvider.notifier).swipe(_item2, 'rejected');
+    await Future<void>.delayed(Duration.zero);
 
-      expect(submitted.last, (domainCode: 'games', itemId: 2, status: 'rejected'));
-    },
-  );
+    expect(submitted.last, (domainCode: 'games', itemId: 2, status: 'rejected'));
+  });
 
   test('si el job termina con éxito, usa el resultado del motor (no /seed)', () async {
     final container = ProviderContainer(

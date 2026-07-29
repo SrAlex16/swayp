@@ -64,24 +64,18 @@ class CanUndoNotifier extends Notifier<bool> {
 
 final canUndoProvider = NotifierProvider<CanUndoNotifier, bool>(CanUndoNotifier.new);
 
-/// Toggle "ya lo conozco" de la carta actual (docs/ARCHITECTURE.md sección
-/// 7.1): si está activo, el swipe deja de significar "interés" y pasa a
-/// ser una respuesta directa de gusto (`known_liked`/`known_disliked`) en
-/// vez de `interested`/`rejected`. [DeckNotifier.swipe] lo resetea a
-/// `false` tras cada swipe — así no hace falta duplicar ese reset en cada
-/// sitio de la UI que puede disparar un swipe (arrastre y los dos
-/// botones).
-class AlreadyKnownToggleNotifier extends Notifier<bool> {
+/// Estado de la carta actual para el patrón de flujo simple usado por el
+/// backend: el usuario puede aceptar, rechazar u omitir sin un paso extra
+/// de confirmación.
+class SwipeModeNotifier extends Notifier<String> {
   @override
-  bool build() => false;
+  String build() => 'interested';
 
-  void toggle() => state = !state;
-  void reset() => state = false;
+  void set(String mode) => state = mode;
+  void reset() => state = 'interested';
 }
 
-final alreadyKnownToggleProvider = NotifierProvider<AlreadyKnownToggleNotifier, bool>(
-  AlreadyKnownToggleNotifier.new,
-);
+final swipeModeProvider = NotifierProvider<SwipeModeNotifier, String>(SwipeModeNotifier.new);
 
 /// Mazo de ítems de Descubrir para el dominio activo (docs/ARCHITECTURE.md
 /// sección 7.1). Se recarga automáticamente cuando cambia
@@ -172,22 +166,18 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
     }
   }
 
-  /// Valora [item]. Sin el toggle "ya lo conozco" activo, [status] debe
-  /// ser "interested" (derecha) o "rejected" (izquierda); con
-  /// [alreadyKnown] en `true`, se remapea a "known_liked"/"known_disliked"
-  /// respectivamente (docs/ARCHITECTURE.md sección 7.1).
+  /// Valora [item]. El flujo actual no usa un toggle de "ya lo conozco";
+  /// los estados válidos son `interested`, `rejected` y `skipped`.
   ///
   /// Alcance explícito de este bloque (ver docs/TODO.md): envío optimista
   /// simple. La carta se quita del mazo en memoria al instante; el POST a
   /// `/ratings` va en segundo plano sin bloquear la UI. Si falla, se loguea
   /// y se expone vía [swipeErrorProvider], pero la carta NO se reinserta
   /// automáticamente — para eso está [undo], de un solo nivel.
-  void swipe(Item item, String status, {bool alreadyKnown = false}) {
-    ref.read(alreadyKnownToggleProvider.notifier).reset();
+  void swipe(Item item, String status) {
+    ref.read(swipeModeProvider.notifier).reset();
 
-    final resolvedStatus = alreadyKnown
-        ? (status == 'interested' ? 'known_liked' : 'known_disliked')
-        : status;
+    final resolvedStatus = status;
 
     final domainCode = ref.read(currentDomainProvider).value?.code;
 

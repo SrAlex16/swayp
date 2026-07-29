@@ -15,6 +15,7 @@ Este documento recoge el estado real del backend y la ruta de trabajo más recie
 ### Frontend Flutter
 - [x] Rebranding a Swayp completado.
 - [x] Proyecto Flutter arrancando con dependencias base y build real de Android.
+- [x] Limpieza del flujo de Guardados: eliminado el repository legacy de `pending-confirmation` y ahora el listado de Guardados consume `SavedRepository`.
 - [ ] Arquitectura de carpetas y pantallas reales aún pendiente de implementar.
 
 ## Progreso verificado

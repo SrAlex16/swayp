@@ -11,7 +11,8 @@ import 'deck_provider.dart';
 /// Pantalla de Descubrir (docs/ARCHITECTURE.md sección 7.1) — pantalla de
 /// arranque de la app. Muestra la carta superior del mazo del dominio
 /// activo, con swipe real (gesto de arrastre + botones ✕/✓), undo de un
-/// solo nivel (sección 10) y el toggle "ya lo conozco" (sección 7.1).
+/// solo nivel (sección 10) y un modo de swipe simple que admite aceptar,
+/// rechazar u omitir sin ningún flujo de confirmación adicional.
 class RecommendationsScreen extends ConsumerWidget {
   const RecommendationsScreen({super.key});
 
@@ -20,7 +21,7 @@ class RecommendationsScreen extends ConsumerWidget {
     final currentDomainAsync = ref.watch(currentDomainProvider);
     final deckAsync = ref.watch(deckProvider);
     final canUndo = ref.watch(canUndoProvider);
-    final alreadyKnown = ref.watch(alreadyKnownToggleProvider);
+    final swipeMode = ref.watch(swipeModeProvider);
 
     ref.listen<AppException?>(swipeErrorProvider, (previous, next) {
       if (next == null) return;
@@ -49,9 +50,7 @@ class RecommendationsScreen extends ConsumerWidget {
           }
           final topItem = items.first;
           void swipe(String status) {
-            ref
-                .read(deckProvider.notifier)
-                .swipe(topItem, status, alreadyKnown: alreadyKnown);
+            ref.read(deckProvider.notifier).swipe(topItem, status);
           }
 
           return Column(
@@ -60,9 +59,9 @@ class RecommendationsScreen extends ConsumerWidget {
                 child: _SwipeableCard(
                   key: ValueKey(topItem.itemId),
                   item: topItem,
-                  alreadyKnown: alreadyKnown,
-                  onToggleAlreadyKnown: () =>
-                      ref.read(alreadyKnownToggleProvider.notifier).toggle(),
+                  swipeMode: swipeMode,
+                  onModeChanged: (mode) =>
+                      ref.read(swipeModeProvider.notifier).set(mode),
                   onSwiped: swipe,
                   onBlacklist: () {
                     ref.read(deckProvider.notifier).blacklistCurrent(topItem);
@@ -75,6 +74,7 @@ class RecommendationsScreen extends ConsumerWidget {
               _ActionButtonsRow(
                 onReject: () => swipe('rejected'),
                 onAccept: () => swipe('interested'),
+                onSkip: () => swipe('skipped'),
                 canUndo: canUndo,
                 onUndo: () => ref.read(deckProvider.notifier).undo(),
               ),
@@ -212,23 +212,22 @@ class _DeckError extends StatelessWidget {
 /// (docs/ARCHITECTURE.md sección 7.1): rotación/fade sutiles mientras se
 /// arrastra; al superar el umbral de distancia dispara `onSwiped` con
 /// "interested" (derecha) o "rejected" (izquierda) y suelta el arrastre. Si
-/// no llega al umbral, la carta vuelve al centro. Incluye el toggle "ya lo
-/// conozco" en la esquina — [onSwiped] siempre manda el status base
-/// (`interested`/`rejected`); es [DeckNotifier.swipe] quien lo remapea a
-/// `known_liked`/`known_disliked` según [alreadyKnown].
+/// no llega al umbral, la carta vuelve al centro. No usa un toggle de
+/// "ya lo conozco": [onSwiped] manda el estado real `interested`/`rejected`
+/// al backend.
 class _SwipeableCard extends StatefulWidget {
   const _SwipeableCard({
     required super.key,
     required this.item,
-    required this.alreadyKnown,
-    required this.onToggleAlreadyKnown,
+    required this.swipeMode,
+    required this.onModeChanged,
     required this.onSwiped,
     required this.onBlacklist,
   });
 
   final Item item;
-  final bool alreadyKnown;
-  final VoidCallback onToggleAlreadyKnown;
+  final String swipeMode;
+  final ValueChanged<String> onModeChanged;
   final ValueChanged<String> onSwiped;
   final VoidCallback onBlacklist;
 
@@ -273,9 +272,9 @@ class _SwipeableCardState extends State<_SwipeableCard> {
                 Positioned(
                   top: 24,
                   right: 24,
-                  child: _AlreadyKnownToggle(
-                    active: widget.alreadyKnown,
-                    onTap: widget.onToggleAlreadyKnown,
+                  child: _SwipeModeChip(
+                    mode: widget.swipeMode,
+                    onChanged: widget.onModeChanged,
                   ),
                 ),
                 Positioned(top: 24, left: 24, child: _BlacklistButton(onTap: widget.onBlacklist)),
@@ -288,22 +287,39 @@ class _SwipeableCardState extends State<_SwipeableCard> {
   }
 }
 
-/// Toggle "ya lo conozco" (docs/ARCHITECTURE.md sección 7.1): resuelve con
-/// fricción mínima el caso de que aparezca algo que el usuario ya ha
-/// consumido, sin necesitar una pantalla aparte.
-class _AlreadyKnownToggle extends StatelessWidget {
-  const _AlreadyKnownToggle({required this.active, required this.onTap});
+/// Selector de modo de swipe simple: aceptar, rechazar u omitir.
+class _SwipeModeChip extends StatelessWidget {
+  const _SwipeModeChip({required this.mode, required this.onChanged});
 
-  final bool active;
-  final VoidCallback onTap;
+  final String mode;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final currentLabel = switch (mode) {
+      'interested' => 'Guardar',
+      'rejected' => 'Rechazar',
+      'skipped' => 'Omitir',
+      _ => 'Guardar',
+    };
+
     return FilterChip(
-      label: const Text('Ya lo conozco'),
-      avatar: Icon(active ? Icons.visibility : Icons.visibility_outlined),
-      selected: active,
-      onSelected: (_) => onTap(),
+      label: Text(currentLabel),
+      avatar: Icon(switch (mode) {
+        'interested' => Icons.favorite,
+        'rejected' => Icons.close,
+        'skipped' => Icons.skip_next,
+        _ => Icons.favorite,
+      }),
+      selected: true,
+      onSelected: (_) {
+        final nextMode = switch (mode) {
+          'interested' => 'rejected',
+          'rejected' => 'skipped',
+          _ => 'interested',
+        };
+        onChanged(nextMode);
+      },
     );
   }
 }
@@ -413,12 +429,14 @@ class _ActionButtonsRow extends StatelessWidget {
   const _ActionButtonsRow({
     required this.onReject,
     required this.onAccept,
+    required this.onSkip,
     required this.canUndo,
     required this.onUndo,
   });
 
   final VoidCallback onReject;
   final VoidCallback onAccept;
+  final VoidCallback onSkip;
   final bool canUndo;
   final VoidCallback onUndo;
 
@@ -438,6 +456,8 @@ class _ActionButtonsRow extends StatelessWidget {
           ),
           const SizedBox(width: 24),
           _ActionButton(icon: Icons.favorite, color: Colors.green, onPressed: onAccept),
+          const SizedBox(width: 24),
+          _ActionButton(icon: Icons.skip_next, color: Colors.orange, onPressed: onSkip),
         ],
       ),
     );

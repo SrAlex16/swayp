@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:swayp/core/errors/app_exception.dart';
 import 'package:swayp/data/repositories/domain_repository.dart';
-import 'package:swayp/data/repositories/pending_confirmation_repository.dart';
+import 'package:swayp/data/repositories/saved_repository.dart';
 import 'package:swayp/domain/models/domain.dart';
 import 'package:swayp/domain/models/pending_rating.dart';
 import 'package:swayp/features/saved/saved_provider.dart';
@@ -32,18 +32,18 @@ const _rating2 = PendingRating(
 
 typedef _ConfirmCall = ({String domainCode, int ratingId, String status});
 
-class _FakePendingConfirmationRepository extends PendingConfirmationRepository {
-  _FakePendingConfirmationRepository(super.ref, this._pending, {this.onConfirm, this.failWith});
+class _FakeSavedRepository extends SavedRepository {
+  _FakeSavedRepository(super.ref, this._pending, {this.onConfirm, this.failWith});
 
   final List<PendingRating> _pending;
   final void Function(_ConfirmCall call)? onConfirm;
   final AppException? failWith;
 
   @override
-  Future<List<PendingRating>> getPending(String domainCode) async => _pending;
+  Future<List<PendingRating>> getSavedRatings(String domainCode) async => _pending;
 
   @override
-  Future<void> confirm(String domainCode, int ratingId, String status) async {
+  Future<void> updateRatingStatus(String domainCode, int ratingId, String status) async {
     onConfirm?.call((domainCode: domainCode, ratingId: ratingId, status: status));
     if (failWith != null) throw failWith!;
   }
@@ -58,8 +58,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         domainsProvider.overrideWith((ref) => Future.value(const [_games])),
-        pendingConfirmationRepositoryProvider.overrideWith(
-          (ref) => _FakePendingConfirmationRepository(ref, [_rating1, _rating2]),
+        savedRepositoryProvider.overrideWith(
+          (ref) => _FakeSavedRepository(ref, [_rating1, _rating2]),
         ),
       ],
     );
@@ -70,13 +70,13 @@ void main() {
     expect(result.map((rating) => rating.ratingId), [1, 2]);
   });
 
-  test('confirmItem quita el item de la lista tras éxito', () async {
+  test('updateItem quita el item de la lista tras éxito', () async {
     final calls = <_ConfirmCall>[];
     final container = ProviderContainer(
       overrides: [
         domainsProvider.overrideWith((ref) => Future.value(const [_games])),
-        pendingConfirmationRepositoryProvider.overrideWith(
-          (ref) => _FakePendingConfirmationRepository(
+        savedRepositoryProvider.overrideWith(
+          (ref) => _FakeSavedRepository(
             ref,
             [_rating1, _rating2],
             onConfirm: calls.add,
@@ -88,18 +88,18 @@ void main() {
 
     await container.read(savedProvider.future);
 
-    await container.read(savedProvider.notifier).confirmItem(1, 'known_liked');
+    await container.read(savedProvider.notifier).updateItem(1, 'rejected');
 
-    expect(calls, [(domainCode: 'games', ratingId: 1, status: 'known_liked')]);
+    expect(calls, [(domainCode: 'games', ratingId: 1, status: 'rejected')]);
     expect(container.read(savedProvider).value?.map((rating) => rating.ratingId), [2]);
   });
 
-  test('un fallo al confirmar no quita el item (permite reintentar)', () async {
+  test('un fallo al actualizar no quita el item (permite reintentar)', () async {
     final container = ProviderContainer(
       overrides: [
         domainsProvider.overrideWith((ref) => Future.value(const [_games])),
-        pendingConfirmationRepositoryProvider.overrideWith(
-          (ref) => _FakePendingConfirmationRepository(
+        savedRepositoryProvider.overrideWith(
+          (ref) => _FakeSavedRepository(
             ref,
             [_rating1, _rating2],
             failWith: const AppException(code: 'NETWORK_ERROR', message: 'Sin conexión'),
@@ -112,7 +112,7 @@ void main() {
     await container.read(savedProvider.future);
 
     // No debe lanzar ni tumbar el test.
-    await container.read(savedProvider.notifier).confirmItem(1, 'known_liked');
+    await container.read(savedProvider.notifier).updateItem(1, 'rejected');
 
     expect(container.read(savedProvider).value?.map((rating) => rating.ratingId), [1, 2]);
   });
