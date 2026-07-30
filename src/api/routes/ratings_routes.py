@@ -209,6 +209,36 @@ def delete_rating(domain_code: str, rating_id: int):
     return "", 204
 
 
+@ratings_bp.route("/domains/<domain_code>/ratings", methods=["DELETE"])
+def reset_ratings(domain_code: str):
+    """Reset del algoritmo (ver docs/ARCHITECTURE.md sección 3.4): borra todos los
+    ratings del usuario en este dominio, incluidos los interested (vacía Guardados
+    también). No toca preferencias explícitas ni blacklist — son declaraciones/
+    exclusiones explícitas del usuario, no el entrenamiento implícito del algoritmo.
+    """
+    require_enabled_domain(domain_code)
+
+    device_id = request.args.get("device_id")
+    if not device_id:
+        raise ValidationError("device_id es obligatorio")
+
+    user = user_repository.get_or_create_by_device_id(device_id)
+    deleted_count = rating_repository.delete_all_for_user(user.id, domain_code)
+
+    logger.info(
+        "ratings reseteados (reset del algoritmo)",
+        extra={
+            "layer": "api",
+            "event": "ratings_reset",
+            "user_id": user.id,
+            "domain_code": domain_code,
+            "deleted_count": deleted_count,
+        },
+    )
+
+    return jsonify({"deleted_count": deleted_count}), 200
+
+
 @ratings_bp.route("/domains/<domain_code>/pending-confirmation", methods=["GET"])
 def get_pending_confirmation(domain_code: str):
     require_enabled_domain(domain_code)

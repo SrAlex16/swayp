@@ -275,6 +275,82 @@ def test_delete_rating_de_otro_device_id_da_404(client, insert_item):
     assert delete_response.get_json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_reset_ratings_vacia_guardados_y_preserva_preferencias_y_blacklist(
+    client, insert_item
+):
+    device_id = "integration-test-user"
+    interested_item_id = insert_item("games", "ext-1", "Interested Item")
+    rejected_item_id = insert_item("games", "ext-2", "Rejected Item")
+    blacklisted_item_id = insert_item("games", "ext-3", "Blacklisted Item")
+
+    client.post(
+        "/api/v1/domains/games/ratings",
+        json={
+            "device_id": device_id,
+            "item_id": interested_item_id,
+            "status": "interested",
+        },
+    )
+    client.post(
+        "/api/v1/domains/games/ratings",
+        json={
+            "device_id": device_id,
+            "item_id": rejected_item_id,
+            "status": "rejected",
+        },
+    )
+    client.post(
+        "/api/v1/domains/games/blacklist",
+        json={"device_id": device_id, "item_id": blacklisted_item_id},
+    )
+    client.put(
+        "/api/v1/users/domains/games/preferences",
+        json={
+            "device_id": device_id,
+            "preferences": [{"tag": "RPG", "weight": 1.0}],
+        },
+    )
+
+    reset_response = client.delete(
+        f"/api/v1/domains/games/ratings?device_id={device_id}"
+    )
+    assert reset_response.status_code == 200
+    assert reset_response.get_json() == {"deleted_count": 2}
+
+    pending_after = client.get(
+        f"/api/v1/domains/games/pending-confirmation?device_id={device_id}"
+    )
+    assert pending_after.get_json() == []
+
+    preferences_after = client.get(
+        f"/api/v1/users/domains/games/preferences?device_id={device_id}"
+    )
+    assert {
+        (entry["tag"], entry["weight"]) for entry in preferences_after.get_json()
+    } == {("RPG", 1.0)}
+
+    seed_after = client.get(
+        f"/api/v1/domains/games/seed?device_id={device_id}&count=10"
+    )
+    seed_item_ids_after = {item["item_id"] for item in seed_after.get_json()}
+    # El blacklisteado sigue excluido del seed aunque se hayan borrado los ratings.
+    assert blacklisted_item_id not in seed_item_ids_after
+    # El anteriormente valorado sí puede volver a aparecer: el reset borró la señal.
+    assert interested_item_id in seed_item_ids_after
+    assert rejected_item_id in seed_item_ids_after
+
+
+def test_reset_ratings_sin_ratings_devuelve_0(client, insert_item):
+    device_id = "integration-test-user"
+
+    reset_response = client.delete(
+        f"/api/v1/domains/games/ratings?device_id={device_id}"
+    )
+
+    assert reset_response.status_code == 200
+    assert reset_response.get_json() == {"deleted_count": 0}
+
+
 def test_perfil_y_preferencias_flujo(client, items_table):
     device_id = "integration-test-user"
 

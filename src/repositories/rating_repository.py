@@ -166,6 +166,30 @@ def delete(rating_id: int) -> bool:
         conn.close()
 
 
+def delete_all_for_user(user_id: int, domain_code: str) -> int:
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM ratings WHERE user_id = ? AND domain_code = ?",
+            (user_id, domain_code),
+        )
+        conn.commit()
+        deleted_count = cursor.rowcount
+        logger.debug(
+            "ratings de un dominio borrados en bloque",
+            extra={
+                "layer": "repository",
+                "event": "ratings_bulk_deleted",
+                "user_id": user_id,
+                "domain_code": domain_code,
+                "deleted_count": deleted_count,
+            },
+        )
+        return deleted_count
+    finally:
+        conn.close()
+
+
 def update_status(rating_id: int, status: str) -> Rating | None:
     conn = get_connection()
     try:

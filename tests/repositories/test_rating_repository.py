@@ -129,6 +129,42 @@ def test_delete_inexistente_devuelve_false(items_table):
     assert rating_repository.delete(999999) is False
 
 
+def test_delete_all_for_user_borra_solo_dominio_y_usuario_correctos(insert_item):
+    user = user_repository.get_or_create_by_device_id("device-1")
+    other_user = user_repository.get_or_create_by_device_id("device-2")
+
+    games_item_1 = insert_item("games", "g1", "Game One")
+    games_item_2 = insert_item("games", "g2", "Game Two")
+    movies_item = insert_item("movies", "m1", "Movie One")
+
+    rating_repository.create(
+        user.id, games_item_1, "games", status="interested", source="onboarding"
+    )
+    rating_repository.create(
+        user.id, games_item_2, "games", status="rejected", source="onboarding"
+    )
+    # Mismo usuario, otro dominio: no debe verse afectado por el reset de "games".
+    other_domain_rating = rating_repository.create(
+        user.id, movies_item, "movies", status="interested", source="onboarding"
+    )
+    # Otro usuario, mismo dominio: tampoco debe verse afectado.
+    other_user_rating = rating_repository.create(
+        other_user.id, games_item_1, "games", status="interested", source="onboarding"
+    )
+
+    deleted_count = rating_repository.delete_all_for_user(user.id, "games")
+
+    assert deleted_count == 2
+    assert rating_repository.get_by_user(user.id, "games") == []
+    assert rating_repository.get_by_id(other_domain_rating.id) is not None
+    assert rating_repository.get_by_id(other_user_rating.id) is not None
+
+
+def test_delete_all_for_user_sin_ratings_devuelve_0(user_and_item):
+    user, _item_id = user_and_item
+    assert rating_repository.delete_all_for_user(user.id, "games") == 0
+
+
 def test_unique_user_item_falla_en_segundo_create(user_and_item):
     """ratings tiene UNIQUE(user_id, item_id) y create() no maneja el conflicto
     (a diferencia de preference_repository/user_profile_repository, que sí usan

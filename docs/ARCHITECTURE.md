@@ -278,6 +278,13 @@ POST /api/v1/domains/{domain}/ratings
      body: {user_id, item_id, status}   # status: 'rejected' | 'interested' | 'skipped'
      → 201 { rating }
 
+DELETE /api/v1/domains/{domain}/ratings?user_id=X
+     → reset del algoritmo: borra TODOS los ratings del usuario en ese dominio,
+       incluidos los 'interested' (vacía Guardados también). No toca
+       user_explicit_preferences ni blacklist — son declaraciones/exclusiones
+       explícitas del usuario, no el entrenamiento implícito del algoritmo.
+       200 { deleted_count }
+
 POST /api/v1/domains/{domain}/recommendations/jobs
      body: {user_id}
      → 202 { job_id }              # nunca bloqueante
