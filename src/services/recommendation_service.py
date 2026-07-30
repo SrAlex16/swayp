@@ -37,9 +37,12 @@ def generate_recommendations(
         raise ValidationError("El usuario no tiene ratings en este dominio todavía")
 
     # Base del shrinkage (ver docs/ARCHITECTURE.md sección 9): el total de ratings
-    # del usuario en este dominio, no un subconjunto de señales "fuertes" — ese
-    # concepto (known_liked/known_disliked) se retiró del modelo de señales.
-    total_ratings = len(ratings)
+    # con señal real (interested/rejected) del usuario en este dominio. Los
+    # "skipped" no entrenan el perfil (sección 7.1) y no deben inflar este conteo,
+    # aunque sí sean filas en `ratings`.
+    total_ratings = sum(
+        1 for rating in ratings if rating.status in KNOWN_SIGNAL_STATUSES
+    )
 
     signal_weights = signal_weight_repository.get_all()
 

@@ -58,8 +58,13 @@ def get_seed(domain_code: str):
     # Muestreo aleatorio simple por ahora: la estratificación por género que describe
     # docs/ARCHITECTURE.md queda pendiente en docs/ROADMAP.md, no se implementa aquí.
     catalog = item_repository.get_all(domain_code)
+    # Solo interested/rejected cuentan como "ya valorado" (ver docs/ARCHITECTURE.md
+    # sección 7.1): un "skipped" no es una señal real, así que el item debe poder
+    # reaparecer en un seed posterior en vez de quedar excluido para siempre.
     already_rated_ids = {
-        rating.item_id for rating in rating_repository.get_by_user(user.id, domain_code)
+        rating.item_id
+        for rating in rating_repository.get_by_user(user.id, domain_code)
+        if rating.status in ("interested", "rejected")
     }
     # Blacklist dura (docs/ARCHITECTURE.md sección 3.3): exclusión permanente y
     # explícita, distinta de los ya valorados — se excluyen ambos igual.

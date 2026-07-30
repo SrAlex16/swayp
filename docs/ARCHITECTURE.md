@@ -552,13 +552,13 @@ En ambos casos la UI se comporta igual para el usuario; la diferencia de sincron
 
 ## 11. Notificaciones y retención
 
-**Principio de diseño**: retener al usuario a base de valor real (mejores recomendaciones, transparencia de por qué se recomienda algo, cierre útil del bucle de confirmación), no de patrones manipulativos (rachas con culpa, urgencia falsa, refuerzo variable). Además de ser mejor diseño, es más fácil de justificar en la memoria del curso.
+**Principio de diseño**: retener al usuario a base de valor real (mejores recomendaciones, transparencia de por qué se recomienda algo, un Guardados que no se acumula sin control), no de patrones manipulativos (rachas con culpa, urgencia falsa, refuerzo variable). Además de ser mejor diseño, es más fácil de justificar en la memoria del curso.
 
 **Tipos de notificación:**
 
 | Tipo | Trigger | Objetivo |
 |---|---|---|
-| Recordatorio de confirmación | X días desde que un ítem entró en Guardados sin confirmar, o al acumularse N pendientes | Cerrar el bucle que alimenta al modelo (la más valiosa de las tres) |
+| Recordatorio de Guardados | X días desde que un ítem entró en Guardados, o al acumularse N ítems sin revisar | Traer de vuelta al usuario a una lista con valor real ya generado (sin flujo de confirmación que cerrar, ver sección 7.3) |
 | Reactivación | Inactividad de varios días (ej. 5-7 — nunca diario) | Traer de vuelta sin presionar |
 | Resumen semanal (opcional) | Cada X días con actividad reciente | Mostrar qué ha aprendido el modelo sobre sus gustos (reutiliza el logging del score híbrido, sección 3.6) |
 

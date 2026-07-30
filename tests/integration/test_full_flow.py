@@ -177,6 +177,27 @@ def test_rating_skipped_es_aceptado_y_no_va_a_guardados(client, insert_item):
     assert pending.get_json() == []
 
 
+def test_rating_skipped_reaparece_en_un_seed_posterior(client, insert_item):
+    """Regresión: un item marcado como skipped no debe quedar excluido de /seed para
+    siempre (bug real encontrado en revisión — seed_routes.py excluía por cualquier
+    rating existente sin mirar el status, ver docs/ARCHITECTURE.md sección 7.1)."""
+    device_id = "integration-test-user"
+    item_id = insert_item("games", "ext-skip", "Solo Item Skip")
+
+    rating_response = client.post(
+        "/api/v1/domains/games/ratings",
+        json={"device_id": device_id, "item_id": item_id, "status": "skipped"},
+    )
+    assert rating_response.status_code == 201
+
+    seed_response = client.get(
+        f"/api/v1/domains/games/seed?device_id={device_id}&count=10"
+    )
+    assert seed_response.status_code == 200
+    seed_item_ids = {item["item_id"] for item in seed_response.get_json()}
+    assert item_id in seed_item_ids
+
+
 def test_pending_confirmation_flujo(client, insert_item):
     device_id = "integration-test-user"
     item_id = insert_item("games", "ext-1", "Solo Item")
