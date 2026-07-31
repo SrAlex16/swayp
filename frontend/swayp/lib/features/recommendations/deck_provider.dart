@@ -64,19 +64,6 @@ class CanUndoNotifier extends Notifier<bool> {
 
 final canUndoProvider = NotifierProvider<CanUndoNotifier, bool>(CanUndoNotifier.new);
 
-/// Estado de la carta actual para el patrón de flujo simple usado por el
-/// backend: el usuario puede aceptar, rechazar u omitir sin un paso extra
-/// de confirmación.
-class SwipeModeNotifier extends Notifier<String> {
-  @override
-  String build() => 'interested';
-
-  void set(String mode) => state = mode;
-  void reset() => state = 'interested';
-}
-
-final swipeModeProvider = NotifierProvider<SwipeModeNotifier, String>(SwipeModeNotifier.new);
-
 /// Mazo de ítems de Descubrir para el dominio activo (docs/ARCHITECTURE.md
 /// sección 7.1). Se recarga automáticamente cuando cambia
 /// [currentDomainProvider]. Deliberadamente NO es un `FutureProvider` puro:
@@ -166,8 +153,10 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
     }
   }
 
-  /// Valora [item]. El flujo actual no usa un toggle de "ya lo conozco";
-  /// los estados válidos son `interested`, `rejected` y `skipped`.
+  /// Valora [item] con `status` `interested` o `rejected` — un swipe real,
+  /// participa en el undo de un solo nivel (ver [undo]). Para omitir sin
+  /// generar una señal de entrenamiento fuerte, usa [skip] en su lugar (no
+  /// participa en el undo, igual que [blacklistCurrent]).
   ///
   /// Alcance explícito de este bloque (ver docs/TODO.md): envío optimista
   /// simple. La carta se quita del mazo en memoria al instante; el POST a
@@ -175,10 +164,6 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
   /// y se expone vía [swipeErrorProvider], pero la carta NO se reinserta
   /// automáticamente — para eso está [undo], de un solo nivel.
   void swipe(Item item, String status) {
-    ref.read(swipeModeProvider.notifier).reset();
-
-    final resolvedStatus = status;
-
     final domainCode = ref.read(currentDomainProvider).value?.code;
 
     final current = state.value ?? const [];
@@ -186,11 +171,34 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
     state = AsyncData(updated);
 
     if (domainCode != null) {
-      final ratingIdFuture = _submitRating(domainCode, item, resolvedStatus);
+      final ratingIdFuture = _submitRating(domainCode, item, status);
       _lastSwipedItem = item;
       _lastSwipedDomainCode = domainCode;
       _lastRatingIdFuture = ratingIdFuture;
       ref.read(canUndoProvider.notifier).set(true);
+    }
+
+    if (updated.isEmpty) {
+      ref.invalidateSelf();
+    }
+  }
+
+  /// Omite [item] (docs/ARCHITECTURE.md sección 7.1): envía `status`
+  /// `skipped`, un estado neutral que no entrena el perfil. Mismo patrón
+  /// optimista que [blacklistCurrent] — la carta se quita del mazo al
+  /// instante, el POST va en segundo plano — y, como [blacklistCurrent], NO
+  /// participa en el undo de un solo nivel: omitir no es un swipe real, así
+  /// que no debe poder deshacerse ni pisar el bookkeeping de un swipe
+  /// anterior pendiente de deshacer.
+  void skip(Item item) {
+    final domainCode = ref.read(currentDomainProvider).value?.code;
+
+    final current = state.value ?? const [];
+    final updated = current.where((candidate) => candidate.itemId != item.itemId).toList();
+    state = AsyncData(updated);
+
+    if (domainCode != null) {
+      unawaited(_submitRating(domainCode, item, 'skipped'));
     }
 
     if (updated.isEmpty) {
@@ -263,25 +271,30 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
   /// falla, se loguea y se expone vía [swipeErrorProvider] (mismo canal
   /// que los errores de swipe) — la carta no se reinserta, igual que un
   /// swipe fallido.
-  void blacklistCurrent(Item item) {
+  ///
+  /// Devuelve el [BlacklistResult] del backend (`null` si falló) para que la
+  /// UI pueda mostrar un aviso distinto si se blacklisteó también una saga
+  /// entera (`collectionBlacklisted`, ver docs/ARCHITECTURE.md sección 3.3) —
+  /// la quita del mazo en sí ya ocurrió de forma síncrona antes de este
+  /// `await`, así que esperar el resultado no retrasa el efecto optimista.
+  Future<BlacklistResult?> blacklistCurrent(Item item) {
     final domainCode = ref.read(currentDomainProvider).value?.code;
 
     final current = state.value ?? const [];
     final updated = current.where((candidate) => candidate.itemId != item.itemId).toList();
     state = AsyncData(updated);
 
-    if (domainCode != null) {
-      unawaited(_submitBlacklist(domainCode, item));
-    }
-
     if (updated.isEmpty) {
       ref.invalidateSelf();
     }
+
+    if (domainCode == null) return Future.value(null);
+    return _submitBlacklist(domainCode, item);
   }
 
-  Future<void> _submitBlacklist(String domainCode, Item item) async {
+  Future<BlacklistResult?> _submitBlacklist(String domainCode, Item item) async {
     try {
-      await ref.read(blacklistRepositoryProvider).addToBlacklist(
+      return await ref.read(blacklistRepositoryProvider).addToBlacklist(
         domainCode: domainCode,
         itemId: item.itemId,
       );
@@ -294,6 +307,7 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
       if (ref.mounted) {
         ref.read(swipeErrorProvider.notifier).state = error;
       }
+      return null;
     }
   }
 

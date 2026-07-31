@@ -11,8 +11,8 @@ import 'deck_provider.dart';
 /// Pantalla de Descubrir (docs/ARCHITECTURE.md sección 7.1) — pantalla de
 /// arranque de la app. Muestra la carta superior del mazo del dominio
 /// activo, con swipe real (gesto de arrastre + botones ✕/✓), undo de un
-/// solo nivel (sección 10) y un modo de swipe simple que admite aceptar,
-/// rechazar u omitir sin ningún flujo de confirmación adicional.
+/// solo nivel (sección 10) y un botón dedicado para omitir sin ningún flujo
+/// de confirmación adicional.
 class RecommendationsScreen extends ConsumerWidget {
   const RecommendationsScreen({super.key});
 
@@ -21,7 +21,6 @@ class RecommendationsScreen extends ConsumerWidget {
     final currentDomainAsync = ref.watch(currentDomainProvider);
     final deckAsync = ref.watch(deckProvider);
     final canUndo = ref.watch(canUndoProvider);
-    final swipeMode = ref.watch(swipeModeProvider);
 
     ref.listen<AppException?>(swipeErrorProvider, (previous, next) {
       if (next == null) return;
@@ -53,28 +52,30 @@ class RecommendationsScreen extends ConsumerWidget {
             ref.read(deckProvider.notifier).swipe(topItem, status);
           }
 
+          Future<void> blacklist() async {
+            final result = await ref.read(deckProvider.notifier).blacklistCurrent(topItem);
+            if (!context.mounted) return;
+            final collectionName = result?.collectionBlacklisted;
+            final message = collectionName != null
+                ? "No se te volverán a recomendar películas de '$collectionName'"
+                : 'No se te volverá a mostrar';
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+          }
+
           return Column(
             children: [
               Expanded(
                 child: _SwipeableCard(
                   key: ValueKey(topItem.itemId),
                   item: topItem,
-                  swipeMode: swipeMode,
-                  onModeChanged: (mode) =>
-                      ref.read(swipeModeProvider.notifier).set(mode),
                   onSwiped: swipe,
-                  onBlacklist: () {
-                    ref.read(deckProvider.notifier).blacklistCurrent(topItem);
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('No se te volverá a mostrar')));
-                  },
+                  onBlacklist: blacklist,
                 ),
               ),
               _ActionButtonsRow(
                 onReject: () => swipe('rejected'),
                 onAccept: () => swipe('interested'),
-                onSkip: () => swipe('skipped'),
+                onSkip: () => ref.read(deckProvider.notifier).skip(topItem),
                 canUndo: canUndo,
                 onUndo: () => ref.read(deckProvider.notifier).undo(),
               ),
@@ -212,22 +213,18 @@ class _DeckError extends StatelessWidget {
 /// (docs/ARCHITECTURE.md sección 7.1): rotación/fade sutiles mientras se
 /// arrastra; al superar el umbral de distancia dispara `onSwiped` con
 /// "interested" (derecha) o "rejected" (izquierda) y suelta el arrastre. Si
-/// no llega al umbral, la carta vuelve al centro. No usa un toggle de
-/// "ya lo conozco": [onSwiped] manda el estado real `interested`/`rejected`
-/// al backend.
+/// no llega al umbral, la carta vuelve al centro. [onSwiped] manda el
+/// estado real `interested`/`rejected` al backend; omitir vive aparte, en
+/// el botón dedicado de [_ActionButtonsRow].
 class _SwipeableCard extends StatefulWidget {
   const _SwipeableCard({
     required super.key,
     required this.item,
-    required this.swipeMode,
-    required this.onModeChanged,
     required this.onSwiped,
     required this.onBlacklist,
   });
 
   final Item item;
-  final String swipeMode;
-  final ValueChanged<String> onModeChanged;
   final ValueChanged<String> onSwiped;
   final VoidCallback onBlacklist;
 
@@ -269,14 +266,6 @@ class _SwipeableCardState extends State<_SwipeableCard> {
             child: Stack(
               children: [
                 _TopCard(item: widget.item),
-                Positioned(
-                  top: 24,
-                  right: 24,
-                  child: _SwipeModeChip(
-                    mode: widget.swipeMode,
-                    onChanged: widget.onModeChanged,
-                  ),
-                ),
                 Positioned(top: 24, left: 24, child: _BlacklistButton(onTap: widget.onBlacklist)),
               ],
             ),
@@ -287,47 +276,9 @@ class _SwipeableCardState extends State<_SwipeableCard> {
   }
 }
 
-/// Selector de modo de swipe simple: aceptar, rechazar u omitir.
-class _SwipeModeChip extends StatelessWidget {
-  const _SwipeModeChip({required this.mode, required this.onChanged});
-
-  final String mode;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final currentLabel = switch (mode) {
-      'interested' => 'Guardar',
-      'rejected' => 'Rechazar',
-      'skipped' => 'Omitir',
-      _ => 'Guardar',
-    };
-
-    return FilterChip(
-      label: Text(currentLabel),
-      avatar: Icon(switch (mode) {
-        'interested' => Icons.favorite,
-        'rejected' => Icons.close,
-        'skipped' => Icons.skip_next,
-        _ => Icons.favorite,
-      }),
-      selected: true,
-      onSelected: (_) {
-        final nextMode = switch (mode) {
-          'interested' => 'rejected',
-          'rejected' => 'skipped',
-          _ => 'interested',
-        };
-        onChanged(nextMode);
-      },
-    );
-  }
-}
-
 /// Bloqueo permanente del ítem actual (docs/ARCHITECTURE.md sección 3.3):
-/// visualmente distinto del toggle y de los botones ✕/✓ — icono de
-/// "bloquear", no un chip de selección, para que no se confunda con una
-/// opción reversible.
+/// visualmente distinto de los botones ✕/✓/omitir — icono de "bloquear",
+/// para que no se confunda con una opción reversible.
 class _BlacklistButton extends StatelessWidget {
   const _BlacklistButton({required this.onTap});
 

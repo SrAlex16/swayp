@@ -78,15 +78,20 @@ class _FakeRatingsRepository extends RatingsRepository {
 typedef _BlacklistedItem = ({String domainCode, int itemId});
 
 class _FakeBlacklistRepository extends BlacklistRepository {
-  _FakeBlacklistRepository(super.ref, {this.onAdd, this.failWith});
+  _FakeBlacklistRepository(super.ref, {this.onAdd, this.failWith, this.collectionBlacklisted});
 
   final void Function(_BlacklistedItem entry)? onAdd;
   final AppException? failWith;
+  final String? collectionBlacklisted;
 
   @override
-  Future<void> addToBlacklist({required String domainCode, required int itemId}) async {
+  Future<BlacklistResult> addToBlacklist({
+    required String domainCode,
+    required int itemId,
+  }) async {
     onAdd?.call((domainCode: domainCode, itemId: itemId));
     if (failWith != null) throw failWith!;
+    return BlacklistResult(itemBlacklisted: true, collectionBlacklisted: collectionBlacklisted);
   }
 }
 
@@ -332,7 +337,7 @@ void main() {
     expect(container.read(canUndoProvider), false);
   });
 
-  test('el swipe simple envía los estados reales del backend', () async {
+  test('el swipe envía el status indicado (interested/rejected)', () async {
     final submitted = <_SubmittedRating>[];
     final container = ProviderContainer(
       overrides: [
@@ -350,18 +355,103 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(deckProvider.future);
-    container.read(swipeModeProvider.notifier).set('skipped');
-    expect(container.read(swipeModeProvider), 'skipped');
 
-    container.read(deckProvider.notifier).swipe(_item1, 'skipped');
+    container.read(deckProvider.notifier).swipe(_item1, 'interested');
     await Future<void>.delayed(Duration.zero);
-
-    expect(submitted, [(domainCode: 'games', itemId: 1, status: 'skipped')]);
+    expect(submitted, [(domainCode: 'games', itemId: 1, status: 'interested')]);
 
     container.read(deckProvider.notifier).swipe(_item2, 'rejected');
     await Future<void>.delayed(Duration.zero);
-
     expect(submitted.last, (domainCode: 'games', itemId: 2, status: 'rejected'));
+  });
+
+  test('skip() quita el item de la lista de inmediato y envía status "skipped"', () async {
+    final submitted = <_SubmittedRating>[];
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith(
+          (ref) => _FakeRatingsRepository(ref, onSubmit: submitted.add),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(deckProvider.future);
+
+    container.read(deckProvider.notifier).skip(_item1);
+
+    // Optimista: desaparece del mazo de inmediato.
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [2]);
+
+    await Future<void>.delayed(Duration.zero);
+    expect(submitted, [(domainCode: 'games', itemId: 1, status: 'skipped')]);
+  });
+
+  test('skip() no habilita el undo (a diferencia de swipe)', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith((ref) => _FakeRatingsRepository(ref)),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(deckProvider.future);
+
+    container.read(deckProvider.notifier).skip(_item1);
+
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [2]);
+    expect(container.read(canUndoProvider), false);
+
+    await Future<void>.delayed(Duration.zero);
+  });
+
+  test('skip() no pisa el bookkeeping de un swipe anterior pendiente de deshacer', () async {
+    final deletedCalls = <_DeletedRating>[];
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2, _item3],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith(
+          (ref) => _FakeRatingsRepository(ref, onDelete: deletedCalls.add, nextRatingId: 700),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(deckProvider.future);
+
+    // Un swipe real habilita el undo, con _item1 como lo que se deshace...
+    container.read(deckProvider.notifier).swipe(_item1, 'interested');
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [2, 3]);
+    expect(container.read(canUndoProvider), true);
+
+    // ...y un skip() posterior no debe pisar ese bookkeeping: el undo sigue
+    // actuando sobre _item1 (no sobre _item2, que fue lo último "quitado").
+    container.read(deckProvider.notifier).skip(_item2);
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [3]);
+    expect(container.read(canUndoProvider), true);
+
+    await container.read(deckProvider.notifier).undo();
+
+    expect(deletedCalls, [(domainCode: 'games', ratingId: 700)]);
+    expect(container.read(deckProvider).value?.map((item) => item.itemId), [1, 3]);
+    expect(container.read(canUndoProvider), false);
   });
 
   test('si el job termina con éxito, usa el resultado del motor (no /seed)', () async {
@@ -517,6 +607,34 @@ void main() {
 
     expect(blacklisted, [(domainCode: 'games', itemId: 1)]);
     expect(submittedRatings, isEmpty);
+  });
+
+  test('blacklistCurrent() devuelve collection_blacklisted cuando el backend lo informa', () async {
+    final container = ProviderContainer(
+      overrides: [
+        domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+        seedRepositoryProvider.overrideWith(
+          (ref) => _FakeSeedRepository(ref, const [
+            [_item1, _item2],
+          ]),
+        ),
+        ratingsRepositoryProvider.overrideWith((ref) => _FakeRatingsRepository(ref)),
+        blacklistRepositoryProvider.overrideWith(
+          (ref) => _FakeBlacklistRepository(
+            ref,
+            collectionBlacklisted: 'The Avengers Collection',
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(deckProvider.future);
+
+    final result = await container.read(deckProvider.notifier).blacklistCurrent(_item1);
+
+    expect(result?.itemBlacklisted, true);
+    expect(result?.collectionBlacklisted, 'The Avengers Collection');
   });
 
   test('un fallo al blacklistear se expone vía swipeErrorProvider (mismo canal)', () async {

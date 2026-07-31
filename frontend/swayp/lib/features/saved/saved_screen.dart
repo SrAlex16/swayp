@@ -4,20 +4,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/errors/app_exception.dart';
 import '../../domain/models/pending_rating.dart';
 import 'saved_provider.dart';
+import 'saved_view_preferences.dart';
 
 /// Pantalla de Guardados (docs/ARCHITECTURE.md sección 7.3): ratings
-/// `interested` que el usuario ha guardado desde el swipe. Tocar una fila
-/// permite quitarla del listado cambiando el rating a `rejected` o
-/// eliminándolo con el botón de borrar.
+/// `interested` que el usuario ha guardado desde el swipe. Ya no hay ningún
+/// flujo de confirmación — cada fila se puede quitar directamente (swipe o
+/// icono de papelera) o rechazar, sin pasos intermedios.
 class SavedScreen extends ConsumerWidget {
   const SavedScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final savedAsync = ref.watch(savedProvider);
+    final sortOrder = ref.watch(savedSortOrderProvider);
+    final lastSeenAt = ref.watch(lastSeenSavedAtProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Guardados')),
+      appBar: AppBar(
+        title: const Text('Guardados'),
+        actions: [
+          PopupMenuButton<SavedSortOrder>(
+            tooltip: 'Ordenar',
+            icon: const Icon(Icons.sort),
+            initialValue: sortOrder,
+            onSelected: (order) =>
+                ref.read(savedSortOrderProvider.notifier).setSortOrder(order),
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: SavedSortOrder.recent,
+                child: Text('Más reciente primero'),
+              ),
+              PopupMenuItem(
+                value: SavedSortOrder.alphabetical,
+                child: Text('Alfabético'),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: savedAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) =>
@@ -26,17 +50,25 @@ class SavedScreen extends ConsumerWidget {
           if (ratings.isEmpty) {
             return const Center(child: Text('No tienes nada guardado por ahora'));
           }
+          final sorted = sortSavedRatings(ratings, sortOrder);
           return ListView.builder(
-            itemCount: ratings.length,
+            itemCount: sorted.length,
             itemBuilder: (context, index) {
-              final rating = ratings[index];
-              return ListTile(
-                leading: _Thumbnail(imageUrl: rating.imageUrl),
-                title: Text(rating.title),
-                onTap: () => showModalBottomSheet<void>(
-                  context: context,
-                  showDragHandle: true,
-                  builder: (context) => _SavedActionsSheet(rating: rating),
+              final rating = sorted[index];
+              return Dismissible(
+                key: ValueKey(rating.ratingId),
+                direction: DismissDirection.endToStart,
+                background: const _DismissBackground(),
+                onDismissed: (_) => ref.read(savedProvider.notifier).remove(rating.ratingId),
+                child: ListTile(
+                  leading: _Thumbnail(imageUrl: rating.imageUrl),
+                  title: Text(rating.title),
+                  trailing: isRatingNew(rating, lastSeenAt) ? const _NewBadge() : null,
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    showDragHandle: true,
+                    builder: (context) => _SavedActionsSheet(rating: rating),
+                  ),
                 ),
               );
             },
@@ -77,6 +109,41 @@ class _SavedError extends StatelessWidget {
   }
 }
 
+/// Fondo rojo con icono de papelera tras la fila al arrastrarla (swipe-to-
+/// delete de [Dismissible]) — misma acción que el botón "Eliminar" del
+/// bottom sheet, solo que sin abrirlo.
+class _DismissBackground extends StatelessWidget {
+  const _DismissBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.errorContainer,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.onErrorContainer),
+    );
+  }
+}
+
+/// Punto sutil que marca una fila como recién guardada desde la última
+/// visita a Guardados (docs/ARCHITECTURE.md sección 7.3).
+class _NewBadge extends StatelessWidget {
+  const _NewBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
 class _Thumbnail extends StatelessWidget {
   const _Thumbnail({required this.imageUrl});
 
@@ -108,7 +175,9 @@ class _Thumbnail extends StatelessWidget {
   }
 }
 
-/// Acciones simples para un item guardado: rechazarlo o quitarlo del listado.
+/// Acciones sobre un item guardado: rechazarlo (sigue siendo un rating,
+/// solo cambia a `rejected`) o eliminarlo directamente (mismo efecto que el
+/// swipe-to-delete de la fila). Sin ningún paso de confirmación intermedio.
 class _SavedActionsSheet extends ConsumerWidget {
   const _SavedActionsSheet({required this.rating});
 
@@ -117,38 +186,34 @@ class _SavedActionsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+            child: Text(
               rating.title,
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                OutlinedButton(
-                  onPressed: () {
-                    ref.read(savedProvider.notifier).updateItem(rating.ratingId, 'rejected');
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Rechazar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    ref.read(savedProvider.notifier).updateItem(rating.ratingId, 'rejected');
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Quitar'),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.thumb_down_outlined),
+            title: const Text('Rechazar'),
+            onTap: () {
+              ref.read(savedProvider.notifier).updateItem(rating.ratingId, 'rejected');
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: const Text('Eliminar'),
+            onTap: () {
+              ref.read(savedProvider.notifier).remove(rating.ratingId);
+              Navigator.pop(context);
+            },
+          ),
+        ],
       ),
     );
   }

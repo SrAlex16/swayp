@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:swayp/core/errors/app_exception.dart';
+import 'package:swayp/data/repositories/blacklist_repository.dart';
 import 'package:swayp/data/repositories/domain_repository.dart';
 import 'package:swayp/data/repositories/ratings_repository.dart';
 import 'package:swayp/domain/models/domain.dart';
@@ -39,6 +40,20 @@ class _FakeRatingsRepository extends RatingsRepository {
 
   @override
   Future<void> deleteRating({required String domainCode, required int ratingId}) async {}
+}
+
+class _FakeBlacklistRepository extends BlacklistRepository {
+  _FakeBlacklistRepository(super.ref, {this.collectionBlacklisted});
+
+  final String? collectionBlacklisted;
+
+  @override
+  Future<BlacklistResult> addToBlacklist({
+    required String domainCode,
+    required int itemId,
+  }) async {
+    return BlacklistResult(itemBlacklisted: true, collectionBlacklisted: collectionBlacklisted);
+  }
 }
 
 void main() {
@@ -180,5 +195,58 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sin conexión'), findsOneWidget);
+  });
+
+  testWidgets('bloquear un item con saga muestra el SnackBar con el nombre de la saga', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+          deckProvider.overrideWithBuild(
+            (ref, notifier) => Future.value(const [
+              Item(itemId: 1, title: 'Avengers: Doomsday', imageUrl: null, externalUrl: null),
+            ]),
+          ),
+          blacklistRepositoryProvider.overrideWith(
+            (ref) => _FakeBlacklistRepository(ref, collectionBlacklisted: 'The Avengers Collection'),
+          ),
+        ],
+        child: const MaterialApp(home: RecommendationsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.block));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text("No se te volverán a recomendar películas de 'The Avengers Collection'"),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('bloquear un item sin saga muestra el SnackBar genérico', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          domainsProvider.overrideWith((ref) => Future.value(const [_games])),
+          deckProvider.overrideWithBuild(
+            (ref, notifier) => Future.value(const [
+              Item(itemId: 1, title: 'Dark Souls', imageUrl: null, externalUrl: null),
+            ]),
+          ),
+          blacklistRepositoryProvider.overrideWith((ref) => _FakeBlacklistRepository(ref)),
+        ],
+        child: const MaterialApp(home: RecommendationsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.block));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No se te volverá a mostrar'), findsOneWidget);
   });
 }

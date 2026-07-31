@@ -40,6 +40,36 @@ class SavedNotifier extends AsyncNotifier<List<PendingRating>> {
     final current = state.value ?? const [];
     state = AsyncData(current.where((rating) => rating.ratingId != ratingId).toList());
   }
+
+  /// Quita [ratingId] de Guardados sin afectar al modelo (a diferencia de
+  /// [updateItem], no cambia ningún status, solo borra el rating — ver
+  /// [SavedRepository.removeFromSaved]). Optimista: desaparece de la lista
+  /// al instante; si el `DELETE` falla, se revierte a la lista anterior —
+  /// a diferencia del swipe, aquí sí tiene sentido reinsertar en caso de
+  /// fallo: es una acción directa sobre un item que sigue siendo visible en
+  /// pantalla, no una carta que ya desapareció del mazo, así que no hay
+  /// ambigüedad sobre qué reinsertar ni dónde.
+  Future<void> remove(int ratingId) async {
+    final domainCode = ref.read(currentDomainProvider).value?.code;
+    if (domainCode == null) return;
+
+    final previous = state.value ?? const [];
+    final updated = previous.where((rating) => rating.ratingId != ratingId).toList();
+    state = AsyncData(updated);
+
+    try {
+      await ref.read(savedRepositoryProvider).removeFromSaved(domainCode, ratingId);
+    } on AppException catch (error) {
+      developer.log(
+        'fallo al quitar rating $ratingId de Guardados: ${error.code} ${error.message}',
+        name: 'swayp.saved',
+        level: 1000,
+      );
+      if (ref.mounted) {
+        state = AsyncData(previous);
+      }
+    }
+  }
 }
 
 final savedProvider = AsyncNotifierProvider<SavedNotifier, List<PendingRating>>(

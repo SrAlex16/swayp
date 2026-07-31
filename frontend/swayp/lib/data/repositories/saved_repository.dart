@@ -8,7 +8,9 @@ import '../../domain/models/pending_rating.dart';
 
 /// Repositorio de la lista de Guardados (docs/ARCHITECTURE.md sección 7.3):
 /// `GET /domains/<code>/pending-confirmation` devuelve los ratings `interested`
-/// del usuario y `PATCH /domains/<code>/ratings/<rating_id>` permite cambiarlos.
+/// del usuario, `PATCH /domains/<code>/ratings/<rating_id>` permite cambiar su
+/// status y `DELETE /domains/<code>/ratings/<rating_id>` los quita sin dejar
+/// ningún rastro (Guardados no confirma nada, solo lista y permite quitar).
 class SavedRepository {
   const SavedRepository(this._ref);
 
@@ -38,6 +40,24 @@ class SavedRepository {
       await apiClient.dio.patch<Map<String, dynamic>>(
         '/domains/$domainCode/ratings/$ratingId',
         data: {'device_id': deviceId, 'status': status},
+      );
+    } on DioException catch (error) {
+      throw AppException.fromDioError(error);
+    }
+  }
+
+  /// Quita [ratingId] de Guardados sin afectar al modelo de señales: un
+  /// `DELETE` liso, no genera ningún rating nuevo ni cambia el status de
+  /// ninguno — mismo endpoint que usa el undo del swipe
+  /// (docs/ARCHITECTURE.md sección 10).
+  Future<void> removeFromSaved(String domainCode, int ratingId) async {
+    final apiClient = _ref.read(apiClientProvider);
+    final deviceId = await _ref.read(deviceIdProvider.future);
+
+    try {
+      await apiClient.dio.delete<void>(
+        '/domains/$domainCode/ratings/$ratingId',
+        queryParameters: {'device_id': deviceId},
       );
     } on DioException catch (error) {
       throw AppException.fromDioError(error);

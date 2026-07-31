@@ -5,6 +5,7 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/recommendations/recommendations_screen.dart';
 import '../../features/saved/saved_provider.dart';
 import '../../features/saved/saved_screen.dart';
+import '../../features/saved/saved_view_preferences.dart';
 
 /// Shell de navegación principal (docs/ARCHITECTURE.md sección 7): barra de
 /// navegación inferior con 3 pestañas. Descubrir y Guardados tienen
@@ -35,6 +36,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       // reconstruye solo por hacerse visible, esto es una red de
       // seguridad extra al entrar en la pestaña.
       ref.invalidate(savedProvider);
+      // Marca de "nuevo" (docs/ARCHITECTURE.md sección 7.3): se actualiza al
+      // ENTRAR en Guardados (no al salir), para que la marca se vea durante
+      // toda la visita — mismo motivo por el que vive aquí y no en
+      // `initState` de SavedScreen: al vivir en un IndexedStack, esa pantalla
+      // no se reconstruye solo por volver a hacerse visible.
+      ref.read(lastSeenSavedAtProvider.notifier).enterScreen(DateTime.now());
     }
     setState(() => _selectedIndex = index);
   }

@@ -1,5 +1,6 @@
-/// Rating `interested` pendiente de confirmar (docs/ARCHITECTURE.md sección
-/// 8.3), tal como lo devuelve `GET /domains/<code>/pending-confirmation`
+/// Rating `interested` guardado por el usuario (docs/ARCHITECTURE.md sección
+/// 7.3: Guardados es solo una lista, sin flujo de confirmación), tal como lo
+/// devuelve `GET /domains/<code>/pending-confirmation`
 /// (src/api/routes/ratings_routes.py).
 class PendingRating {
   const PendingRating({
