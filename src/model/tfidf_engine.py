@@ -93,6 +93,34 @@ class TFIDFRecommendationEngine(RecommendationEngine):
         scored.sort(key=lambda entry: entry.final_score, reverse=True)
         return [(entry.item, entry.final_score) for entry in scored[:top_n]]
 
+    def recommend_scored(
+        self,
+        rated_items: list[tuple[Item, float]],
+        catalog: list[Item],
+        top_n: int,
+        explicit_preferences: list[tuple[str, float]] | None = None,
+        total_ratings: int = 0,
+        shared_terms: int = DEFAULT_SHARED_TERMS,
+    ) -> list[ScoredItem]:
+        """Como recommend(), pero devolviendo el ScoredItem completo (incluido
+        shared_terms) en vez de solo (Item, score) — lo usa
+        recommendation_service.py para construir `matched_terms` en la respuesta de
+        la API (docs/ARCHITECTURE.md sección 9, explicabilidad visible). Mismos
+        parámetros y mismo comportamiento que recommend() (pesos reales por señal,
+        incluidos negativos para 'rejected', y preferencias explícitas) — a
+        diferencia de recommend_with_breakdown, pensado para recommend.py --debug,
+        que no tiene concepto de preferencias explícitas y trata todo liked_items
+        como señal positiva de peso 1.0."""
+        scored = self._score_catalog(
+            rated_items,
+            catalog,
+            shared_terms=shared_terms,
+            explicit_preferences=explicit_preferences,
+            total_ratings=total_ratings,
+        )
+        scored.sort(key=lambda entry: entry.final_score, reverse=True)
+        return scored[:top_n]
+
     def recommend_with_breakdown(
         self,
         liked_items: list[Item],

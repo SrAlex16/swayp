@@ -3,6 +3,7 @@
 (docs/ARCHITECTURE.md sección 5.1) — cubren los mismos flujos ya validados a mano con
 curl durante la sesión, ahora automatizados."""
 
+import json
 import time
 import uuid
 
@@ -64,6 +65,90 @@ def test_flujo_completo_seed_rating_job_resultado(client, seeded_catalog):
     result_item_ids = {item["item_id"] for item in job_data["result"]}
     assert len(result_item_ids) > 0
     assert result_item_ids.isdisjoint(rated_item_ids)
+
+    # Cada recomendación viene enriquecida (docs/ARCHITECTURE.md secciones 7.1 y 9):
+    # mismos campos de item que /seed (ver seed_routes.py._item_to_dict), más
+    # score y matched_terms para la tarjeta expandible/explicabilidad visible.
+    for entry in job_data["result"]:
+        assert set(entry) == {
+            "item_id",
+            "title",
+            "description",
+            "tags",
+            "community_score",
+            "image_url",
+            "external_url",
+            "score",
+            "matched_terms",
+        }
+        assert isinstance(entry["tags"], list)
+        assert isinstance(entry["matched_terms"], list)
+        assert all(isinstance(term, str) for term in entry["matched_terms"])
+        assert len(entry["matched_terms"]) <= 4
+
+
+def test_recomendaciones_incluyen_matched_terms_reales_y_campos_enriquecidos(
+    client, insert_item
+):
+    """Regresión de forma (no solo de presencia): matched_terms debe contener los
+    términos que de verdad comparten el perfil y la recomendación, no una lista
+    vacía siempre — y description/tags/community_score deben ser los del item real,
+    no solo estar presentes."""
+    device_id = "integration-test-user"
+
+    rated_item_id = insert_item(
+        "games",
+        "ext-rated",
+        "Dragon Quest",
+        text_for_vectorization="dragon quest fantasy kingdom knight sword",
+    )
+    overlapping_item_id = insert_item(
+        "games",
+        "ext-overlap",
+        "Dragon Age Origins",
+        text_for_vectorization="dragon age fantasy kingdom queen throne",
+        description="Una épica de fantasía en un reino en guerra.",
+        tags=json.dumps(["RPG", "Fantasía"]),
+        community_score=0.87,
+    )
+    insert_item(
+        "games",
+        "ext-filler-1",
+        "Space Miners",
+        text_for_vectorization="space miners asteroid colony robots",
+    )
+    insert_item(
+        "games",
+        "ext-filler-2",
+        "Ocean Explorer",
+        text_for_vectorization="ocean explorer submarine treasure reef",
+    )
+
+    client.post(
+        "/api/v1/domains/games/ratings",
+        json={"device_id": device_id, "item_id": rated_item_id, "status": "interested"},
+    )
+
+    job_response = client.post(
+        "/api/v1/domains/games/recommendations/jobs", json={"device_id": device_id}
+    )
+    job_id = job_response.get_json()["job_id"]
+    job_data = _poll_job_until_done(client, job_id)
+
+    assert job_data["status"] == "done"
+    result_by_item_id = {entry["item_id"]: entry for entry in job_data["result"]}
+    overlapping_entry = result_by_item_id[overlapping_item_id]
+
+    # "dragon", "fantasy" y "kingdom" son los únicos términos que comparten el
+    # perfil (construido solo a partir de Dragon Quest) y esta recomendación —
+    # el resto del vocabulario de cada item es exclusivo suyo.
+    assert set(overlapping_entry["matched_terms"]) == {"dragon", "fantasy", "kingdom"}
+    assert (
+        overlapping_entry["description"]
+        == "Una épica de fantasía en un reino en guerra."
+    )
+    assert overlapping_entry["tags"] == ["RPG", "Fantasía"]
+    assert overlapping_entry["community_score"] == 0.87
 
 
 @pytest.mark.parametrize(

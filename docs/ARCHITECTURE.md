@@ -308,7 +308,15 @@ POST /api/v1/domains/{domain}/recommendations/jobs
      → 202 { job_id }              # nunca bloqueante
 
 GET  /api/v1/jobs/{job_id}
-     → { status, result? , error_message? }
+     → { status, result?, error_message? }
+     # result (si status='done'): lista de ítems recomendados, enriquecida para la
+     # tarjeta expandible/explicabilidad visible (sección 7.1 y sección 9):
+     # [{item_id, title, description, tags, community_score, image_url,
+     #   external_url, score, matched_terms}]
+     # matched_terms: 3-4 términos TF-IDF con más peso que la recomendación
+     # comparte con el perfil del usuario (motor: recommend_scored(), ver
+     # src/model/tfidf_engine.py) — vacío si no hay solape o si algo falla al
+     # extraerlo, nunca rompe la generación de recomendaciones.
 
 GET/POST/DELETE /api/v1/domains/{domain}/blacklist
      POST body: {user_id, item_id}

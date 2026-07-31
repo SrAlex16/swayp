@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 # signal_weights) — se reportan siempre en el desglose de logging.
 KNOWN_SIGNAL_STATUSES = ("interested", "rejected")
 
+# Nº de términos de matched_terms en la respuesta (explicabilidad visible, ver
+# docs/ARCHITECTURE.md sección 9): shared_terms del motor ya viene ordenado por
+# peso descendente, esto solo recorta a los que de verdad se muestran en la
+# tarjeta expandida.
+MATCHED_TERMS_COUNT = 4
+
 
 def generate_recommendations(
     user_id: int, domain_code: str, top_n: int = 10
@@ -99,7 +105,7 @@ def generate_recommendations(
         ]
 
     engine = TFIDFRecommendationEngine()
-    recommendations = engine.recommend(
+    scored_items = engine.recommend_scored(
         rated_items,
         catalog,
         top_n,
@@ -116,7 +122,7 @@ def generate_recommendations(
             "domain_code": domain_code,
             "rated_count": len(rated_items),
             "catalog_size": len(catalog),
-            "result_count": len(recommendations),
+            "result_count": len(scored_items),
             "signal_breakdown": {
                 status: status_counts.get(status, 0) for status in KNOWN_SIGNAL_STATUSES
             },
@@ -125,13 +131,37 @@ def generate_recommendations(
         },
     )
 
-    return [
-        {
-            "item_id": item.id,
-            "title": item.title,
-            "image_url": item.image_url,
-            "external_url": item.external_url,
-            "score": score,
-        }
-        for item, score in recommendations
-    ]
+    results = []
+    for entry in scored_items:
+        try:
+            matched_terms = [
+                term
+                for term, _weight in (entry.shared_terms or [])[:MATCHED_TERMS_COUNT]
+            ]
+        except Exception:
+            logger.warning(
+                "fallo al extraer matched_terms del desglose del motor, se deja vacío",
+                extra={
+                    "layer": "service",
+                    "event": "matched_terms_extraction_failed",
+                    "item_id": entry.item.id,
+                },
+                exc_info=True,
+            )
+            matched_terms = []
+
+        results.append(
+            {
+                "item_id": entry.item.id,
+                "title": entry.item.title,
+                "description": entry.item.description,
+                "tags": entry.item.tags,
+                "community_score": entry.item.community_score,
+                "image_url": entry.item.image_url,
+                "external_url": entry.item.external_url,
+                "score": entry.final_score,
+                "matched_terms": matched_terms,
+            }
+        )
+
+    return results
