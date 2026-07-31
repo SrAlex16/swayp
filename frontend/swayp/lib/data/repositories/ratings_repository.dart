@@ -49,6 +49,26 @@ class RatingsRepository {
       throw AppException.fromDioError(error);
     }
   }
+
+  /// `DELETE /domains/<domain_code>/ratings` (reset del algoritmo, ver
+  /// docs/ARCHITECTURE.md sección 3.4): borra TODOS los ratings del usuario
+  /// en ese dominio, incluidos los `interested` (vacía Guardados también).
+  /// No toca preferencias explícitas ni blacklist. Devuelve cuántas filas se
+  /// borraron.
+  Future<int> resetRatings(String domainCode) async {
+    final apiClient = _ref.read(apiClientProvider);
+    final deviceId = await _ref.read(deviceIdProvider.future);
+
+    try {
+      final response = await apiClient.dio.delete<Map<String, dynamic>>(
+        '/domains/$domainCode/ratings',
+        queryParameters: {'device_id': deviceId},
+      );
+      return response.data!['deleted_count'] as int;
+    } on DioException catch (error) {
+      throw AppException.fromDioError(error);
+    }
+  }
 }
 
 final ratingsRepositoryProvider = Provider<RatingsRepository>((ref) => RatingsRepository(ref));

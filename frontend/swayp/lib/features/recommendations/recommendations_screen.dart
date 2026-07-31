@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
-import '../../core/theme/theme_mode_provider.dart';
 import '../../domain/models/item.dart';
 import '../domain_selection/current_domain_provider.dart';
 import '../domain_selection/domain_picker_sheet.dart';
@@ -102,22 +101,18 @@ class RecommendationsScreen extends ConsumerWidget {
           showDragHandle: true,
           builder: (context) => const DomainPickerSheet(),
         );
-      case _MenuAction.theme:
-        showModalBottomSheet(
-          context: context,
-          showDragHandle: true,
-          builder: (context) => const _ThemeModeSheet(),
-        );
       case null:
         break;
     }
   }
 }
 
-enum _MenuAction { changeDomain, theme }
+enum _MenuAction { changeDomain }
 
-/// Menú de acciones de Descubrir (docs/ARCHITECTURE.md sección 7.1),
-/// pensado para crecer con más opciones más adelante.
+/// Menú de acciones de Descubrir (docs/ARCHITECTURE.md sección 7.1). El
+/// selector de tema vivía aquí y se movió a Perfil (sección 7.2), más
+/// contextual para ajustes de la app — este menú se queda solo con lo
+/// específico de Descubrir.
 class _MainMenuSheet extends StatelessWidget {
   const _MainMenuSheet();
 
@@ -132,51 +127,10 @@ class _MainMenuSheet extends StatelessWidget {
             title: const Text('Cambiar de obras'),
             onTap: () => Navigator.pop(context, _MenuAction.changeDomain),
           ),
-          ListTile(
-            leading: const Icon(Icons.brightness_6_outlined),
-            title: const Text('Tema'),
-            onTap: () => Navigator.pop(context, _MenuAction.theme),
-          ),
         ],
       ),
     );
   }
-}
-
-/// Selector manual de tema (Sistema/Claro/Oscuro), sobre el
-/// `ThemeMode.system` por defecto — hoja aparte abierta desde el menú
-/// principal.
-class _ThemeModeSheet extends ConsumerWidget {
-  const _ThemeModeSheet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentMode = ref.watch(themeModeProvider);
-
-    return SafeArea(
-      child: RadioGroup<ThemeMode>(
-        groupValue: currentMode,
-        onChanged: (value) {
-          if (value == null) return;
-          ref.read(themeModeProvider.notifier).setThemeMode(value);
-          Navigator.pop(context);
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final mode in ThemeMode.values)
-              RadioListTile<ThemeMode>(title: Text(_themeModeLabel(mode)), value: mode),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _themeModeLabel(ThemeMode mode) => switch (mode) {
-    ThemeMode.system => 'Sistema',
-    ThemeMode.light => 'Claro',
-    ThemeMode.dark => 'Oscuro',
-  };
 }
 
 class _DeckError extends StatelessWidget {
