@@ -30,6 +30,7 @@ Este documento recoge el estado real del backend y la ruta de trabajo más recie
 
 ### CI/CD
 - [x] Workflow de backend CI configurado para lint, formato y tests.
+- [x] Workflow de frontend CI (docs/ARCHITECTURE.md sección 6.3): `flutter analyze`, `flutter test` y `flutter build apk --debug` en cada push/PR a `main`, con la versión de Flutter fijada (misma lección que ruff en el backend: sin `stable` a secas, para que no haya drift entre el entorno local y el runner).
 
 ## Trabajo pendiente prioritario
 
