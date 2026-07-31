@@ -29,6 +29,19 @@ def test_get_by_id_inexistente(items_table):
     assert item_repository.get_by_id(999999) is None
 
 
+def test_collection_name_se_lee_correctamente(insert_item):
+    with_collection_id = insert_item(
+        "movies", "m1", "Movie One", collection_name="La Saga"
+    )
+    without_collection_id = insert_item("movies", "m2", "Movie Two")
+
+    with_collection = item_repository.get_by_id(with_collection_id)
+    without_collection = item_repository.get_by_id(without_collection_id)
+
+    assert with_collection.collection_name == "La Saga"
+    assert without_collection.collection_name is None
+
+
 def test_get_by_ids_mezcla_existentes_e_inexistentes(insert_item):
     id_1 = insert_item("games", "g1", "Game One")
     id_2 = insert_item("games", "g2", "Game Two")

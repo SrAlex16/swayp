@@ -37,6 +37,14 @@ def add_to_blacklist(domain_code: str):
     user = user_repository.get_or_create_by_device_id(device_id)
     blacklist_repository.add(user.id, item.id, domain_code)
 
+    # Blacklist por saga (ver docs/ARCHITECTURE.md sección 3.3): solo "movies" tiene
+    # collection_name real (TMDB); RAWG no tiene equivalente para videojuegos, así
+    # que item.collection_name siempre es None ahí y esta rama nunca se activa.
+    collection_blacklisted = None
+    if item.collection_name and domain_code == "movies":
+        blacklist_repository.add_collection(user.id, domain_code, item.collection_name)
+        collection_blacklisted = item.collection_name
+
     logger.info(
         "item añadido a la blacklist",
         extra={
@@ -45,7 +53,15 @@ def add_to_blacklist(domain_code: str):
             "user_id": user.id,
             "item_id": item.id,
             "domain_code": domain_code,
+            "collection_blacklisted": collection_blacklisted,
         },
     )
 
-    return jsonify({"item_id": item.id, "domain_code": domain_code}), 201
+    return jsonify(
+        {
+            "item_id": item.id,
+            "domain_code": domain_code,
+            "item_blacklisted": True,
+            "collection_blacklisted": collection_blacklisted,
+        }
+    ), 201

@@ -18,3 +18,4 @@ class Item:
     external_url: str | None = None
     adapter_version: str = ""
     enrichment_version: str = ""
+    collection_name: str | None = None

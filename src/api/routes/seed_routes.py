@@ -69,8 +69,19 @@ def get_seed(domain_code: str):
     # Blacklist dura (docs/ARCHITECTURE.md sección 3.3): exclusión permanente y
     # explícita, distinta de los ya valorados — se excluyen ambos igual.
     blacklisted_ids = blacklist_repository.get_item_ids(user.id, domain_code)
+    # Blacklist por saga: solo afecta a items con collection_name asignado (hoy solo
+    # "movies", ver docs/ARCHITECTURE.md sección 3.3) — los de videojuegos no tienen
+    # ese campo y no se ven afectados.
+    blacklisted_collection_names = (
+        blacklist_repository.get_blacklisted_collection_names(user.id, domain_code)
+    )
     excluded_ids = already_rated_ids | blacklisted_ids
-    candidates = [item for item in catalog if item.id not in excluded_ids]
+    candidates = [
+        item
+        for item in catalog
+        if item.id not in excluded_ids
+        and item.collection_name not in blacklisted_collection_names
+    ]
 
     sample = random.sample(candidates, k=min(count, len(candidates)))
 

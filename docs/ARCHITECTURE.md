@@ -143,6 +143,7 @@ CREATE TABLE items (
   adapter_version TEXT NOT NULL,   -- versión de la lógica que llama a la API y mapea su respuesta a Item
   enrichment_version TEXT NOT NULL, -- versión de la lógica que construye text_for_vectorization; puede cambiar sin que cambie adapter_version
   fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  collection_name TEXT,            -- saga/colección (ej. "belongs_to_collection" de TMDB); NULL si el dominio/adapter no tiene ese concepto (ver nota de blacklisted_collections más abajo)
   UNIQUE(domain_code, external_id)
 );
 
@@ -185,6 +186,23 @@ CREATE TABLE blacklist (
 -- (swipe izquierda, el ítem en teoría podría reaparecer si el contexto cambia
 -- mucho); blacklist es exclusión dura y permanente, acción explícita desde la
 -- tarjeta expandida ("no me interesa esto, no me lo enseñes nunca más").
+
+-- Blacklist por saga: blacklistear un ítem con collection_name asignado excluye
+-- también el resto de ítems de esa misma saga, no solo ese ítem (decisión de
+-- producto explícita: si no quieres ver una peli de una saga concreta, lo más
+-- probable es que tampoco quieras ver el resto). Solo aplica hoy a "movies" (TMDB
+-- expone belongs_to_collection de verdad); RAWG no tiene un equivalente real para
+-- videojuegos, así que sus ítems tienen collection_name=NULL siempre y esta tabla
+-- nunca se puebla para el dominio "games" — no hace falta ninguna condición
+-- especial en el código para eso, simplemente nunca hay collection_name que
+-- blacklistear.
+CREATE TABLE blacklisted_collections (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  domain_code TEXT NOT NULL REFERENCES domains(code),
+  collection_name TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, domain_code, collection_name)
+);
 
 -- Trabajos asíncronos (generación de recomendaciones, refresco de catálogo)
 CREATE TABLE jobs (
@@ -293,6 +311,13 @@ GET  /api/v1/jobs/{job_id}
      → { status, result? , error_message? }
 
 GET/POST/DELETE /api/v1/domains/{domain}/blacklist
+     POST body: {user_id, item_id}
+     → 201 { item_id, domain_code, item_blacklisted: true,
+              collection_blacklisted: "Nombre de la saga" | null }
+     # collection_blacklisted solo es no-nulo si el ítem tiene collection_name
+     # (hoy solo posible en "movies", ver sección 3.3) — al blacklistearlo se
+     # excluye también el resto de ítems de esa saga de /seed y de las
+     # recomendaciones.
 
 GET  /api/v1/domains/{domain}/filters
      → esquema de facetas para renderizar el menú de filtros dinámicamente

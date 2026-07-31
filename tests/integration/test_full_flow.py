@@ -474,3 +474,125 @@ def test_blacklist_excluye_de_seed_y_de_recomendaciones(client, seeded_catalog):
     assert job_data["status"] == "done"
     result_item_ids = {item["item_id"] for item in job_data["result"]}
     assert blacklisted_item_id not in result_item_ids
+
+
+def test_blacklist_por_saga_excluye_toda_la_saga_de_seed_y_recomendaciones(
+    client, insert_item
+):
+    device_id = "integration-test-user"
+
+    saga_texts = [
+        "epic fantasy war dragons kingdom battle",
+        "epic fantasy sequel dragons throne siege",
+        "epic fantasy finale dragons empire conquest",
+    ]
+    saga_item_ids = [
+        insert_item(
+            "movies",
+            f"ext-saga-{i}",
+            f"Saga Movie {i}",
+            text_for_vectorization=text,
+            collection_name="La Gran Saga",
+        )
+        for i, text in enumerate(saga_texts)
+    ]
+    # Vocabulario deliberadamente distinto entre sí (evita que TfidfVectorizer, con
+    # max_df=0.5, pode todos los términos de un corpus tan pequeño por ser
+    # demasiado compartidos).
+    unrelated_texts = [
+        "wizard castle kingdom stone tower",
+        "ocean pirates treasure island voyage",
+        "space station robots future colony",
+    ]
+    unrelated_item_ids = [
+        insert_item(
+            "movies",
+            f"ext-unrelated-{i}",
+            f"Unrelated Movie {i}",
+            text_for_vectorization=text,
+        )
+        for i, text in enumerate(unrelated_texts)
+    ]
+
+    blacklist_response = client.post(
+        "/api/v1/domains/movies/blacklist",
+        json={"device_id": device_id, "item_id": saga_item_ids[0]},
+    )
+    assert blacklist_response.status_code == 201
+    assert blacklist_response.get_json() == {
+        "item_id": saga_item_ids[0],
+        "domain_code": "movies",
+        "item_blacklisted": True,
+        "collection_blacklisted": "La Gran Saga",
+    }
+
+    seed_response = client.get(
+        f"/api/v1/domains/movies/seed?device_id={device_id}&count=10"
+    )
+    seed_item_ids = {item["item_id"] for item in seed_response.get_json()}
+    assert seed_item_ids.isdisjoint(saga_item_ids)
+    assert set(unrelated_item_ids) <= seed_item_ids
+
+    for item_id in unrelated_item_ids:
+        rating_response = client.post(
+            "/api/v1/domains/movies/ratings",
+            json={"device_id": device_id, "item_id": item_id, "status": "interested"},
+        )
+        assert rating_response.status_code == 201
+
+    job_response = client.post(
+        "/api/v1/domains/movies/recommendations/jobs", json={"device_id": device_id}
+    )
+    job_id = job_response.get_json()["job_id"]
+    job_data = _poll_job_until_done(client, job_id)
+
+    assert job_data["status"] == "done"
+    result_item_ids = {item["item_id"] for item in job_data["result"]}
+    assert result_item_ids.isdisjoint(saga_item_ids)
+
+
+def test_blacklist_pelicula_sin_saga_no_excluye_nada_mas(client, insert_item):
+    device_id = "integration-test-user"
+
+    solo_item_id = insert_item("movies", "ext-solo", "Solo Movie")
+    other_item_id = insert_item("movies", "ext-other", "Other Movie")
+
+    blacklist_response = client.post(
+        "/api/v1/domains/movies/blacklist",
+        json={"device_id": device_id, "item_id": solo_item_id},
+    )
+    assert blacklist_response.status_code == 201
+    assert blacklist_response.get_json()["collection_blacklisted"] is None
+
+    seed_response = client.get(
+        f"/api/v1/domains/movies/seed?device_id={device_id}&count=10"
+    )
+    seed_item_ids = {item["item_id"] for item in seed_response.get_json()}
+    assert solo_item_id not in seed_item_ids
+    assert other_item_id in seed_item_ids
+
+
+def test_blacklist_videojuego_nunca_intenta_tocar_collections(client, insert_item):
+    device_id = "integration-test-user"
+
+    game_item_id = insert_item("games", "ext-game", "Solo Game")
+    other_game_item_id = insert_item("games", "ext-other-game", "Other Game")
+
+    blacklist_response = client.post(
+        "/api/v1/domains/games/blacklist",
+        json={"device_id": device_id, "item_id": game_item_id},
+    )
+    assert blacklist_response.status_code == 201
+    assert blacklist_response.get_json() == {
+        "item_id": game_item_id,
+        "domain_code": "games",
+        "item_blacklisted": True,
+        "collection_blacklisted": None,
+    }
+
+    seed_response = client.get(
+        f"/api/v1/domains/games/seed?device_id={device_id}&count=10"
+    )
+    seed_item_ids = {item["item_id"] for item in seed_response.get_json()}
+    assert game_item_id not in seed_item_ids
+    assert other_game_item_id in seed_item_ids

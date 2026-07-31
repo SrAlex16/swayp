@@ -77,6 +77,18 @@ CREATE TABLE IF NOT EXISTS blacklist (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, item_id)
 );
+
+-- Blacklist por saga (solo aplica a dominios cuyos items tengan collection_name,
+-- hoy únicamente "movies" vía TMDB — RAWG no tiene un equivalente real para
+-- videojuegos, ver docs/ARCHITECTURE.md sección 3.3): blacklistear una película de
+-- una saga excluye toda la saga, no solo ese ítem.
+CREATE TABLE IF NOT EXISTS blacklisted_collections (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    domain_code TEXT NOT NULL,
+    collection_name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, domain_code, collection_name)
+);
 """
 
 # Pesos por defecto del modelo de señales (ver docs/ARCHITECTURE.md, sección 9). Solo

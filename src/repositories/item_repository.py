@@ -26,6 +26,7 @@ def _row_to_item(row: sqlite3.Row) -> Item:
         external_url=row["external_url"],
         adapter_version=row["adapter_version"],
         enrichment_version=row["enrichment_version"],
+        collection_name=row["collection_name"],
     )
 
 

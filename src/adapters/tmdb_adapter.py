@@ -186,6 +186,7 @@ class TmdbAdapter(BaseAdapter):
             external_url=f"https://www.themoviedb.org/movie/{data.get('id')}",
             adapter_version=self.ADAPTER_VERSION,
             enrichment_version=self.ENRICHMENT_VERSION,
+            collection_name=collection_name,
         )
 
     @classmethod

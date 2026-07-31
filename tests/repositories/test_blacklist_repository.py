@@ -40,3 +40,48 @@ def test_get_item_ids_filtra_por_domain_code(insert_item):
 
     assert blacklist_repository.get_item_ids(user.id, "games") == {item_games}
     assert blacklist_repository.get_item_ids(user.id, "movies") == {item_movies}
+
+
+def test_add_collection_es_idempotente(items_table):
+    user = user_repository.get_or_create_by_device_id("device-1")
+
+    blacklist_repository.add_collection(user.id, "movies", "La Saga")
+    blacklist_repository.add_collection(user.id, "movies", "La Saga")
+
+    assert blacklist_repository.get_blacklisted_collection_names(user.id, "movies") == {
+        "La Saga"
+    }
+
+
+def test_get_blacklisted_collection_names_devuelve_lo_esperado(items_table):
+    user = user_repository.get_or_create_by_device_id("device-1")
+
+    blacklist_repository.add_collection(user.id, "movies", "Saga Uno")
+    blacklist_repository.add_collection(user.id, "movies", "Saga Dos")
+
+    assert blacklist_repository.get_blacklisted_collection_names(user.id, "movies") == {
+        "Saga Uno",
+        "Saga Dos",
+    }
+
+
+def test_get_blacklisted_collection_names_vacio_si_nada_blacklisteado(items_table):
+    user = user_repository.get_or_create_by_device_id("device-1")
+
+    assert (
+        blacklist_repository.get_blacklisted_collection_names(user.id, "movies")
+        == set()
+    )
+
+
+def test_get_blacklisted_collection_names_filtra_por_domain_code(items_table):
+    user = user_repository.get_or_create_by_device_id("device-1")
+
+    blacklist_repository.add_collection(user.id, "movies", "Saga Movies")
+
+    assert blacklist_repository.get_blacklisted_collection_names(user.id, "movies") == {
+        "Saga Movies"
+    }
+    assert (
+        blacklist_repository.get_blacklisted_collection_names(user.id, "games") == set()
+    )

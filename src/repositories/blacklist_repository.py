@@ -37,6 +37,61 @@ def add(user_id: int, item_id: int, domain_code: str) -> None:
         conn.close()
 
 
+def add_collection(user_id: int, domain_code: str, collection_name: str) -> None:
+    """Blacklist por saga (ver docs/ARCHITECTURE.md sección 3.3), solo aplica hoy a
+    'movies'. Idempotente igual que add(): `INSERT OR IGNORE` sobre la PRIMARY KEY
+    (user_id, domain_code, collection_name)."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO blacklisted_collections
+                (user_id, domain_code, collection_name)
+            VALUES (?, ?, ?)
+            """,
+            (user_id, domain_code, collection_name),
+        )
+        conn.commit()
+        logger.debug(
+            "colección añadida a la blacklist",
+            extra={
+                "layer": "repository",
+                "event": "blacklist_collection_added",
+                "user_id": user_id,
+                "domain_code": domain_code,
+                "collection_name": collection_name,
+            },
+        )
+    finally:
+        conn.close()
+
+
+def get_blacklisted_collection_names(user_id: int, domain_code: str) -> set[str]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT collection_name FROM blacklisted_collections
+            WHERE user_id = ? AND domain_code = ?
+            """,
+            (user_id, domain_code),
+        ).fetchall()
+        collection_names = {row["collection_name"] for row in rows}
+        logger.debug(
+            "colecciones blacklisteadas cargadas",
+            extra={
+                "layer": "repository",
+                "event": "blacklisted_collections_loaded",
+                "user_id": user_id,
+                "domain_code": domain_code,
+                "count": len(collection_names),
+            },
+        )
+        return collection_names
+    finally:
+        conn.close()
+
+
 def get_item_ids(user_id: int, domain_code: str) -> set[int]:
     conn = get_connection()
     try:

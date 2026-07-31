@@ -11,6 +11,7 @@ Este documento recoge el estado real del backend y la ruta de trabajo más recie
 - [x] Estado neutral `skipped` para omitir tarjetas sin convertirlas en señal positiva o negativa.
 - [x] Shrinkage basado en el total de ratings del usuario por dominio, con la fórmula $w_{explicit} = \max(0.1, 1 - total\_ratings/50)$.
 - [x] Reset del algoritmo: `DELETE /api/v1/domains/<domain_code>/ratings` borra todos los ratings del usuario en ese dominio (incluidos los `interested`, vacía Guardados), preservando preferencias explícitas y blacklist.
+- [x] Blacklist por saga (solo dominio `movies`, vía `collection_name` de TMDB): blacklistear una película de una saga excluye toda la saga de `/seed` y de las recomendaciones. Videojuegos (RAWG) no tiene equivalente, sin cambios ahí.
 - [x] Suite de tests backend completa en verde.
 
 ### Frontend Flutter

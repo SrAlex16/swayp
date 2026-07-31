@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS items (
     adapter_version TEXT NOT NULL,
     enrichment_version TEXT NOT NULL,
     fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    collection_name TEXT,
     UNIQUE(domain, external_id)
 );
 """
@@ -45,8 +46,8 @@ UPSERT = """
 INSERT INTO items (
     external_id, domain, title, description, text_for_vectorization,
     tags, community_score, image_url, external_url,
-    adapter_version, enrichment_version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    adapter_version, enrichment_version, collection_name
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(domain, external_id) DO UPDATE SET
     title=excluded.title,
     description=excluded.description,
@@ -57,6 +58,7 @@ ON CONFLICT(domain, external_id) DO UPDATE SET
     external_url=excluded.external_url,
     adapter_version=excluded.adapter_version,
     enrichment_version=excluded.enrichment_version,
+    collection_name=excluded.collection_name,
     fetched_at=CURRENT_TIMESTAMP
 """
 
@@ -64,10 +66,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+def _migrate_add_collection_name_column(conn: sqlite3.Connection) -> None:
+    """Migración idempotente: `items` puede existir ya de una versión anterior sin
+    `collection_name` (CREATE TABLE IF NOT EXISTS no la añadiría). Comprueba antes de
+    intentar el ALTER TABLE para no fallar en una BD que ya la tenga."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+    if "collection_name" not in columns:
+        conn.execute("ALTER TABLE items ADD COLUMN collection_name TEXT")
+        conn.commit()
+
+
 def get_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.execute(SCHEMA)
+    _migrate_add_collection_name_column(conn)
     return conn
 
 
@@ -86,6 +99,7 @@ def save_item(conn: sqlite3.Connection, item: Item) -> None:
             item.external_url,
             item.adapter_version,
             item.enrichment_version,
+            item.collection_name,
         ),
     )
 

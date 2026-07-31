@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS items (
     adapter_version TEXT NOT NULL,
     enrichment_version TEXT NOT NULL,
     fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    collection_name TEXT,
     UNIQUE(domain, external_id)
 );
 """
@@ -59,6 +60,7 @@ def insert_item(items_table):
             "external_url": None,
             "adapter_version": "test-0.1",
             "enrichment_version": "test-0.1",
+            "collection_name": None,
         }
         defaults.update(overrides)
 
@@ -69,8 +71,8 @@ def insert_item(items_table):
                 INSERT INTO items (
                     external_id, domain, title, description, text_for_vectorization,
                     tags, community_score, image_url, external_url,
-                    adapter_version, enrichment_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    adapter_version, enrichment_version, collection_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     external_id,
@@ -84,6 +86,7 @@ def insert_item(items_table):
                     defaults["external_url"],
                     defaults["adapter_version"],
                     defaults["enrichment_version"],
+                    defaults["collection_name"],
                 ),
             )
             conn.commit()

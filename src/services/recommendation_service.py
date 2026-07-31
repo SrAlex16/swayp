@@ -85,8 +85,18 @@ def generate_recommendations(
     # 'rejected') — se filtra del catálogo antes de puntuar, mismo patrón que ya usa
     # seed_routes.py para excluir los ya valorados.
     blacklisted_ids = blacklist_repository.get_item_ids(user_id, domain_code)
-    if blacklisted_ids:
-        catalog = [item for item in catalog if item.id not in blacklisted_ids]
+    # Blacklist por saga: solo afecta a items con collection_name asignado (hoy solo
+    # "movies", ver docs/ARCHITECTURE.md sección 3.3).
+    blacklisted_collection_names = (
+        blacklist_repository.get_blacklisted_collection_names(user_id, domain_code)
+    )
+    if blacklisted_ids or blacklisted_collection_names:
+        catalog = [
+            item
+            for item in catalog
+            if item.id not in blacklisted_ids
+            and item.collection_name not in blacklisted_collection_names
+        ]
 
     engine = TFIDFRecommendationEngine()
     recommendations = engine.recommend(
