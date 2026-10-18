@@ -13,7 +13,6 @@ from src.model.tfidf_engine import TFIDFRecommendationEngine
 DARK_FANTASY_IDS = {"df-1", "df-2", "df-3", "df-4"}
 PUZZLE_INDIE_IDS = {"pz-1", "pz-2", "pz-3", "pz-4"}
 
-
 @pytest.fixture
 def items_by_id(sample_items):
     return {item.external_id: item for item in sample_items}

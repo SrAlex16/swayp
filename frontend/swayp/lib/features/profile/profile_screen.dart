@@ -7,6 +7,8 @@ import '../../data/repositories/ratings_repository.dart';
 import '../../domain/models/domain.dart';
 import '../../domain/models/user_profile.dart';
 import '../domain_selection/current_domain_provider.dart';
+import '../recommendations/batch_strategy.dart';
+import '../recommendations/deck_provider.dart';
 import '../saved/saved_provider.dart';
 import 'profile_provider.dart';
 
@@ -324,11 +326,21 @@ class _DangerZoneSection extends ConsumerWidget {
 
     try {
       final deletedCount = await ref.read(ratingsRepositoryProvider).resetRatings(domain.code);
+      // El contador local de swipes/lotes (shared_preferences, ver
+      // batch_strategy.dart) es independiente del backend: sin esto, tras el
+      // reset el usuario seguía contando como "con muchos swipes" y el
+      // próximo lote se pedía al motor de recomendación en vez de a /seed —
+      // el motor entonces falla porque ya no hay ratings, un viaje redondo
+      // desperdiciado antes de caer al fallback. Se resetea también aquí
+      // para que el dominio se comporte de verdad como el de un usuario
+      // nuevo.
+      await ref.read(batchStrategyStoreProvider).resetCounters(domain.code);
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Se han borrado $deletedCount valoraciones')));
       ref.invalidate(savedProvider);
+      ref.invalidate(deckProvider);
     } on AppException catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));

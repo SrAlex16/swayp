@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -63,7 +65,34 @@ class BatchStrategyStore {
     final batchCount = (prefs.getInt(_batchCountKey(domainCode)) ?? 0) + 1;
     await prefs.setInt(_batchCountKey(domainCode), batchCount);
 
-    return decideBatchSource(swipeCount: swipeCount, batchCount: batchCount);
+    final source = decideBatchSource(swipeCount: swipeCount, batchCount: batchCount);
+
+    // TODO(diagnostico-no-hay-mas-obras): instrumentación temporal, borrar
+    // tras reproducir en el emulador real (ver conversación).
+    developer.log(
+      '[DIAGNOSTICO] nextBatchSource(domain=$domainCode): '
+      'swipeCount=$swipeCount batchCount=$batchCount '
+      'threshold=$recommendationThreshold diversityInterval=$diversityBatchInterval '
+      '=> source=$source',
+      name: 'swayp.DIAGNOSTICO',
+      level: 2000,
+    );
+
+    return source;
+  }
+
+  /// Borra los contadores locales de [domainCode] (reset del algoritmo desde
+  /// Perfil, docs/ARCHITECTURE.md sección 3.4): sin esto, tras borrar todos
+  /// los ratings en el backend el conteo de swipes seguía viendo el valor
+  /// alto de antes del reset y seguía enviando al usuario al motor de
+  /// recomendación en vez de a `/seed` — el motor entonces falla porque el
+  /// usuario ya no tiene ratings, un viaje redondo desperdiciado antes de
+  /// caer al fallback. Al borrar ambos contadores, el próximo lote de este
+  /// dominio se comporta de verdad como el de un usuario nuevo.
+  Future<void> resetCounters(String domainCode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_swipeCountKey(domainCode));
+    await prefs.remove(_batchCountKey(domainCode));
   }
 }
 

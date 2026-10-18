@@ -95,14 +95,52 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
   @override
   Future<List<Item>> build() async {
     final domain = await ref.watch(currentDomainProvider.future);
-    if (domain == null) return const [];
+    if (domain == null) {
+      // TODO(diagnostico-no-hay-mas-obras): instrumentación temporal, borrar
+      // tras reproducir en el emulador real (ver conversación).
+      developer.log(
+        '[DIAGNOSTICO] build(): currentDomainProvider resolvió a null, '
+        'devolviendo mazo vacío sin llamar a seed/motor',
+        name: 'swayp.DIAGNOSTICO',
+        level: 2000,
+      );
+      return const [];
+    }
 
     final source = await ref.read(batchStrategyStoreProvider).nextBatchSource(domain.code);
     if (source == BatchSource.seed) {
-      return ref.read(seedRepositoryProvider).getSeed(domain.code, count: _seedCount);
+      return _fetchSeedWithLogging(domain.code, reason: 'batch_strategy=seed');
     }
 
     return _loadFromEngine(domain.code);
+  }
+
+  /// Wrapper de `seedRepositoryProvider.getSeed` que loguea la respuesta cruda
+  /// tal cual llega, para diagnóstico temporal (ver conversación) — todas las
+  /// llamadas a /seed desde este notifier pasan por aquí para no duplicar el
+  /// logging en cada punto de fallback.
+  Future<List<Item>> _fetchSeedWithLogging(String domainCode, {required String reason}) async {
+    final items = await ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+
+    // TODO(diagnostico-no-hay-mas-obras): instrumentación temporal, borrar
+    // tras reproducir en el emulador real (ver conversación).
+    developer.log(
+      '[DIAGNOSTICO] getSeed(domain=$domainCode) vía "$reason": '
+      'itemCount=${items.length} itemIds=${items.map((item) => item.itemId).toList()}',
+      name: 'swayp.DIAGNOSTICO',
+      level: 2000,
+    );
+    if (items.isEmpty) {
+      developer.log(
+        '[DIAGNOSTICO] *** MAZO VACÍO *** getSeed(domain=$domainCode) vía "$reason" '
+        'devolvió una lista vacía — este es el punto exacto donde el mazo queda vacío '
+        'por este camino.',
+        name: 'swayp.DIAGNOSTICO',
+        level: 2000,
+      );
+    }
+
+    return items;
   }
 
   /// Pide un lote al motor real (`POST recommendations/jobs` + polling a
@@ -116,12 +154,40 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
           .read(recommendationsRepositoryProvider)
           .requestRecommendationJob(domainCode);
 
+      // TODO(diagnostico-no-hay-mas-obras): instrumentación temporal, borrar
+      // tras reproducir en el emulador real (ver conversación).
+      developer.log(
+        '[DIAGNOSTICO] _loadFromEngine(domain=$domainCode): job solicitado, jobId=$jobId',
+        name: 'swayp.DIAGNOSTICO',
+        level: 2000,
+      );
+
       for (var attempt = 0; attempt < _jobPollMaxAttempts; attempt++) {
         await Future<void>.delayed(_jobPollInterval);
         final jobStatus = await ref.read(recommendationsRepositoryProvider).pollJob(jobId);
 
+        developer.log(
+          '[DIAGNOSTICO] _loadFromEngine(domain=$domainCode): poll intento=$attempt '
+          'jobId=$jobId status=${jobStatus.status} '
+          'resultCount=${jobStatus.result?.length} '
+          'resultItemIds=${jobStatus.result?.map((item) => item.itemId).toList()} '
+          'errorMessage=${jobStatus.errorMessage}',
+          name: 'swayp.DIAGNOSTICO',
+          level: 2000,
+        );
+
         if (jobStatus.isDone) {
-          return jobStatus.result ?? const [];
+          final result = jobStatus.result ?? const [];
+          if (result.isEmpty) {
+            developer.log(
+              '[DIAGNOSTICO] *** MAZO VACÍO *** job $jobId terminó con status=done pero '
+              'result vacío/null (jobStatus.result=${jobStatus.result}) — este es el '
+              'punto exacto donde el mazo queda vacío por el camino del motor.',
+              name: 'swayp.DIAGNOSTICO',
+              level: 2000,
+            );
+          }
+          return result;
         }
         if (jobStatus.isError) {
           developer.log(
@@ -130,7 +196,7 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
             name: 'swayp.deck',
             level: 900,
           );
-          return ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+          return _fetchSeedWithLogging(domainCode, reason: 'job_error_fallback');
         }
         // "pending"/"running": sigue esperando.
       }
@@ -141,7 +207,7 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
         name: 'swayp.deck',
         level: 900,
       );
-      return ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+      return _fetchSeedWithLogging(domainCode, reason: 'job_max_attempts_fallback');
     } on AppException catch (error) {
       developer.log(
         'fallo al pedir/consultar el job de recomendaciones '
@@ -149,7 +215,7 @@ class DeckNotifier extends AsyncNotifier<List<Item>> {
         name: 'swayp.deck',
         level: 900,
       );
-      return ref.read(seedRepositoryProvider).getSeed(domainCode, count: _seedCount);
+      return _fetchSeedWithLogging(domainCode, reason: 'job_appexception_fallback');
     }
   }
 

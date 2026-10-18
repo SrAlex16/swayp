@@ -6,8 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:swayp/data/repositories/domain_repository.dart';
 import 'package:swayp/data/repositories/profile_repository.dart';
 import 'package:swayp/data/repositories/ratings_repository.dart';
+import 'package:swayp/data/repositories/seed_repository.dart';
 import 'package:swayp/domain/models/domain.dart';
 import 'package:swayp/domain/models/explicit_preference.dart';
+import 'package:swayp/domain/models/item.dart';
 import 'package:swayp/domain/models/user_profile.dart';
 import 'package:swayp/features/profile/profile_screen.dart';
 
@@ -51,12 +53,23 @@ class _FakeRatingsRepository extends RatingsRepository {
   }
 }
 
+/// El reset invalida `deckProvider` (ver profile_screen.dart), que sin este
+/// override intentaría una llamada de red real a `/seed` — este fake evita
+/// eso, igual que ya hacen deck_provider_test.dart/recommendations_screen_test.dart.
+class _FakeSeedRepository extends SeedRepository {
+  _FakeSeedRepository(super.ref);
+
+  @override
+  Future<List<Item>> getSeed(String domainCode, {required int count}) async => const [];
+}
+
 Future<void> _pumpProfileScreen(
   WidgetTester tester, {
   void Function(_UpdateProfileCall call)? onUpdateProfile,
   VoidCallback? onReset,
+  Map<String, Object> initialPrefs = const {},
 }) async {
-  SharedPreferences.setMockInitialValues({});
+  SharedPreferences.setMockInitialValues(initialPrefs);
 
   await tester.pumpWidget(
     ProviderScope(
@@ -68,6 +81,7 @@ Future<void> _pumpProfileScreen(
         ratingsRepositoryProvider.overrideWith(
           (ref) => _FakeRatingsRepository(ref, onReset: onReset),
         ),
+        seedRepositoryProvider.overrideWith((ref) => _FakeSeedRepository(ref)),
       ],
       child: const MaterialApp(home: ProfileScreen()),
     ),
@@ -178,4 +192,35 @@ void main() {
     expect(resetCalls, 1);
     expect(find.text('Se han borrado 7 valoraciones'), findsOneWidget);
   });
+
+  testWidgets(
+    'confirmar el reset también borra los contadores locales de batch_strategy',
+    (tester) async {
+      // Simula un usuario con actividad previa: sin esto, tras el reset el
+      // conteo de swipes seguía alto y el próximo lote se pedía al motor de
+      // recomendación en vez de a /seed (que entonces fallaba porque ya no
+      // había ratings) — ver batch_strategy.dart:resetCounters().
+      await _pumpProfileScreen(
+        tester,
+        initialPrefs: {'swipe_count_games': 42, 'batch_count_games': 7},
+      );
+
+      await tester.scrollUntilVisible(
+        find.widgetWithText(OutlinedButton, 'Reiniciar recomendaciones de Videojuegos'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Reiniciar recomendaciones de Videojuegos'),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Reiniciar'));
+      await tester.pumpAndSettle();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('swipe_count_games'), null);
+      expect(prefs.getInt('batch_count_games'), null);
+    },
+  );
 }
